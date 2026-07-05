@@ -372,11 +372,9 @@ pub struct GitFileChange {
     pub staged: bool,
 }
 
-#[tauri::command]
-pub fn git_status(project_id: String) -> Result<Vec<GitFileChange>, String> {
-    let root = ensure_repo(&project_id)?;
-    let out = run_git(&root, &["status", "--porcelain"])?;
-    let text = String::from_utf8_lossy(&out.stdout);
+/// Parse `git status --porcelain` output into structured changes. Pure (no repo
+/// or process needed), so the status/staged classification is unit-testable.
+fn parse_status_porcelain(text: &str) -> Vec<GitFileChange> {
     let mut changes = Vec::new();
     for line in text.lines() {
         // Porcelain status codes (the first two columns) are always ASCII, so
@@ -406,7 +404,15 @@ pub fn git_status(project_id: String) -> Result<Vec<GitFileChange>, String> {
             staged,
         });
     }
-    Ok(changes)
+    changes
+}
+
+#[tauri::command]
+pub fn git_status(project_id: String) -> Result<Vec<GitFileChange>, String> {
+    let root = ensure_repo(&project_id)?;
+    let out = run_git(&root, &["status", "--porcelain"])?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    Ok(parse_status_porcelain(&text))
 }
 
 #[tauri::command]
@@ -462,7 +468,44 @@ pub fn git_head_oid(project_id: String) -> Result<Option<String>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_allowed_remote_url, sanitize_url};
+    use super::{is_allowed_remote_url, parse_status_porcelain, sanitize_url};
+
+    #[test]
+    fn porcelain_classifies_staged_vs_unstaged() {
+        let out = " M work.tex\nM  staged.tex\nMM both.tex\nA  added.tex\n?? new.tex";
+        let c = parse_status_porcelain(out);
+        assert_eq!(c.len(), 5);
+        // " M" = modified in working tree only (unstaged)
+        assert_eq!(c[0].path, "work.tex");
+        assert_eq!(c[0].status, "M");
+        assert!(!c[0].staged);
+        // "M " = staged modification
+        assert_eq!(c[1].status, "M");
+        assert!(c[1].staged);
+        // "MM" = staged + unstaged; the staged (index) side wins
+        assert!(c[2].staged);
+        // "A " = staged add
+        assert_eq!(c[3].status, "A");
+        assert!(c[3].staged);
+        // "??" = untracked, never staged
+        assert_eq!(c[4].path, "new.tex");
+        assert_eq!(c[4].status, "?");
+        assert!(!c[4].staged);
+    }
+
+    #[test]
+    fn porcelain_uses_the_destination_of_a_rename() {
+        let c = parse_status_porcelain("R  old/a.tex -> new/b.tex");
+        assert_eq!(c.len(), 1);
+        assert_eq!(c[0].path, "new/b.tex");
+        assert_eq!(c[0].status, "R");
+        assert!(c[0].staged);
+    }
+
+    #[test]
+    fn porcelain_skips_blank_and_short_lines() {
+        assert!(parse_status_porcelain("\n\nx").is_empty());
+    }
 
     #[test]
     fn blocks_transport_helpers_and_bad_schemes() {
