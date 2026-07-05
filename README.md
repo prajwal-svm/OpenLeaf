@@ -142,41 +142,78 @@ For privacy there's a full offline mode, no account, and no telemetry.
 
 ```mermaid
 flowchart TB
-    subgraph WEB["React 19 Webview — UI only, no direct disk or network"]
-        direction LR
-        EDIT["Editor<br/>CodeMirror 6 · LaTeX grammar<br/>Vim mode · command palette"]
-        LANG["Language checks<br/>LaTeX-mask → Harper + Hunspell<br/>(WASM, offline, offset-mapped)"]
-        PDFV["PDF viewer<br/>pdf.js · SyncTeX click-to-source"]
-        CHAT["AI agent panel<br/>multi-step tool loop · approval gate"]
-        SRC["Source control<br/>diff · history · publish"]
-    end
+  subgraph FE["FRONTEND — System WebView (WKWebView / WebView2 / WebKitGTK) · React 19 + TS"]
+    direction TB
+    UI["React UI runtime<br/>Zustand stores · Tailwind v4 · router"]
+    CM["CodeMirror 6 editor<br/>LaTeX language · autocomplete (ref/cite) · Vim"]
+    LINT["Language checks (WASM)<br/>latex-mask → Harper grammar + Hunspell spell"]
+    PDF["PDF viewer<br/>pdf.js + web worker · SyncTeX overlay"]
+    AICHAT["AI assistant<br/>Vercel AI SDK · agent tool-loop · approval gate"]
+    IPCC["Tauri IPC client<br/>invoke() · event('compile:log')"]
+    UI --> CM
+    CM --> LINT
+    UI --> PDF
+    UI --> AICHAT
+    UI --> IPCC
+  end
 
-    BOUND{{"Tauri IPC — the only trust boundary<br/>every filesystem / process / network call crosses here"}}
+  IPC["TAURI IPC BRIDGE<br/>serialize args · route commands · the only trust boundary"]
 
-    subgraph RUST["Rust Core — owns disk, processes &amp; secrets"]
-        direction LR
-        GUARD["Path sandbox<br/>abs / .. / symlink rejected<br/>scoped per project"]
-        COMP["Compile orchestrator<br/>Tectonic wrapper · log → errors<br/>raw-bytes PDF · live log stream"]
-        STX["SyncTeX engine<br/>.synctex.gz ↔ source line<br/>(bidirectional)"]
-        VCS["Git + GitHub<br/>env credential helper<br/>token never in webview/argv"]
-        CFG["Config @ 0600<br/>keys never leave the core"]
-        UPD["Auto-updater<br/>minisign verify before install"]
-    end
+  subgraph BE["RUST CORE — Tauri backend · owns disk, processes &amp; secrets"]
+    direction TB
+    ROUTER["Command router<br/>#tauri::command handlers · tokio async runtime"]
+    PATHS["Path sandbox<br/>resolve_within · reject abs / .. / symlink · per-project id"]
+    PROJ["Project + FS store<br/>CRUD · full-text search · templates · zip / pandoc export"]
+    COMPILE["Compile orchestrator<br/>tectonic_args · entry wrapper · log → errors · raw-bytes PDF"]
+    SYNC["SyncTeX engine<br/>gunzip .synctex.gz · forward + inverse mapping"]
+    GIT["Git engine<br/>auto-commit · diff · restore · push / pull"]
+    GHAPI["GitHub module<br/>REST (reqwest) + OAuth device flow"]
+    CFG["Config store @ 0600<br/>GitHub token + AI keys · never returned to webview"]
+    UPD["Updater<br/>minisign verify → install → relaunch"]
+    ROUTER --> PATHS
+    PATHS --> PROJ
+    ROUTER --> COMPILE
+    ROUTER --> SYNC
+    ROUTER --> GIT
+    ROUTER --> GHAPI
+    ROUTER --> CFG
+    ROUTER --> UPD
+  end
 
-    TEC[["Tectonic sidecar<br/>XeTeX typesetting engine"]]
-    DISK[("~/.openleaf<br/>every project a real git repo")]
-    GH[("GitHub<br/>opt-in sync")]
-    AI[("OpenAI · Anthropic · Ollama<br/>bring-your-own-key")]
-    FEED[("Signed release feed<br/>latest.json + .sig")]
+  TEC["Tectonic sidecar<br/>XeTeX engine · bundled externalBin"]
+  GITBIN["git subprocess<br/>env-backed credential helper"]
+  DISK["Local disk<br/>~/.openleaf/projects/&lt;id&gt; · real .git repos"]
+  GHREMOTE["GitHub<br/>api.github.com + git remote"]
+  PROV["AI providers<br/>OpenAI · Anthropic · Ollama · BYO key"]
+  FEEDS["Update feed<br/>GitHub Releases · latest.json + .sig"]
 
-    WEB <==>|invoke · events| BOUND
-    BOUND <==> RUST
-    COMP -->|spawn| TEC
-    GUARD --> DISK
-    VCS --> DISK
-    VCS -.->|push / pull| GH
-    CHAT -.->|streams directly| AI
-    UPD -.->|checks + verifies| FEED
+  IPCC -->|"invoke(cmd, args)"| IPC
+  IPC -->|"Result&lt;T&gt; · emit events"| IPCC
+  IPC ==> ROUTER
+
+  COMPILE -->|"spawn -X compile --synctex"| TEC
+  TEC -->|"PDF · .log · .synctex.gz"| COMPILE
+  PROJ --> DISK
+  GIT --> GITBIN
+  GITBIN --> DISK
+  GITBIN -->|"push / pull · token via env"| GHREMOTE
+  GHAPI -->|"Bearer token · Rust-side only"| GHREMOTE
+  UPD -->|"GET latest.json · verify .sig"| FEEDS
+  AICHAT -.->|"streamText · direct, BYO key"| PROV
+  AICHAT -.->|"tool calls: read / edit / compile"| IPCC
+
+  classDef fe fill:#e0f2fe,stroke:#0284c7,stroke-width:1px,color:#0c4a6e;
+  classDef be fill:#fef3c7,stroke:#d97706,stroke-width:1px,color:#7c2d12;
+  classDef ext fill:#dcfce7,stroke:#16a34a,stroke-width:1px,color:#14532d;
+  classDef bound fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#7f1d1d;
+
+  class UI,CM,LINT,PDF,AICHAT,IPCC fe;
+  class ROUTER,PATHS,PROJ,COMPILE,SYNC,GIT,GHAPI,CFG,UPD be;
+  class TEC,GITBIN,DISK,GHREMOTE,PROV,FEEDS ext;
+  class IPC bound;
+
+  style FE fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,color:#0c4a6e;
+  style BE fill:#fffbeb,stroke:#d97706,stroke-width:2px,color:#7c2d12;
 ```
 
 OpenLeaf is local-first. A React webview draws the UI, a Rust core owns every
