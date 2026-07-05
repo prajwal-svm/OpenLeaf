@@ -94,15 +94,10 @@ jobs:
         working-directory: src-tauri
         run: cargo test --lib
 
-      # Advisory for now: the existing tree isn't rustfmt/clippy clean. Flip
-      # these to blocking (drop `continue-on-error`, add `-D warnings` to clippy)
-      # after a one-time `cargo fmt` + clippy pass. See CONTRIBUTING.md.
-      - name: Format check (advisory)
+      - name: Format check
         working-directory: src-tauri
-        continue-on-error: true
         run: cargo fmt --check
 
-      - name: Clippy (advisory)
+      - name: Clippy
         working-directory: src-tauri
-        continue-on-error: true
-        run: cargo clippy --all-targets
+        run: cargo clippy --all-targets -- -D warnings

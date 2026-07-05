@@ -88,10 +88,9 @@ what counts as prose.
   `pnpm lint:fix`). The gate **blocks** on correctness errors; an existing
   accessibility/style backlog is reported as non-blocking warnings (see
   `biome.json`). Prefer not adding new warnings.
-- **Rust** - `cargo fmt` and `cargo clippy`. These currently run **advisory**
-  (non-blocking) in CI because the tree isn't fully clean yet. If you'd like to
-  help, a one-time `cargo fmt` + clippy-fix pass lets us flip them to blocking
-  in `.github/workflows/ci.yml` (drop `continue-on-error`, add `-D warnings`).
+- **Rust** - the backend must be `cargo fmt`-clean and `cargo clippy`-clean;
+  both are **blocking** in CI (`clippy` runs with `-D warnings`). Run
+  `cargo fmt` and `cargo clippy --all-targets --fix` before pushing.
 - Match the surrounding code - comment density, naming, and idiom.
 
 ## Pull requests
