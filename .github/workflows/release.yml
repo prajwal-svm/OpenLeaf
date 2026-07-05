@@ -128,8 +128,38 @@ jobs:
             - **Windows** - `.msi` or `-setup.exe`
             - **Linux** - `.AppImage` or `.deb`
 
-            > macOS/Windows builds are currently unsigned. See the install docs
-            > for how to open an unsigned build on first launch.
+            ---
+
+            ### First launch: these builds aren't code-signed yet
+
+            OpenLeaf is a young open-source project and we haven't set up
+            Apple/Windows code-signing certificates yet, so your OS will warn you
+            the first time you open it. The app is safe - here's how to get past
+            the warning:
+
+            **macOS** - after dragging OpenLeaf to Applications, remove the
+            quarantine flag once in Terminal:
+
+            ```
+            xattr -dr com.apple.quarantine /Applications/OpenLeaf.app
+            ```
+
+            (or: System Settings -> Privacy & Security -> scroll down -> "Open Anyway").
+
+            **Windows** - on the "Windows protected your PC" screen, click
+            **More info**, then **Run anyway**.
+
+            **Linux** - make the AppImage executable, then run it (no signing
+            prompt on Linux):
+
+            ```
+            chmod +x OpenLeaf_*.AppImage
+            ./OpenLeaf_*.AppImage
+            ```
+
+            (or install the `.deb` / `.rpm` with your package manager).
+
+            Code-signing & notarization are on the roadmap.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
