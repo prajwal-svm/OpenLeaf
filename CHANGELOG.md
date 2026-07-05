@@ -70,6 +70,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **License changed from MIT to Apache-2.0**, © Prajwal S Venkateshmurthy and
+  contributors. Still permissive (free for commercial and open-source use) but
+  with stronger, explicit attribution (a `NOTICE` file redistributors must
+  keep) and a patent grant. Harper is added to the credits.
 - **Faster PDF preview** - compiled PDFs now transfer over IPC as raw bytes
   instead of base64 (drops the ~33% size inflation and a main-thread decode on
   every compile).

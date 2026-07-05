@@ -122,4 +122,4 @@ git tag v0.2.0 && git push origin v0.2.0
 ```
 
 By contributing, you agree that your contributions are licensed under the
-project's [MIT License](LICENSE).
+project's [Apache License 2.0](LICENSE).
