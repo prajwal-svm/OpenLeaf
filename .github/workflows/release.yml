@@ -64,9 +64,8 @@ jobs:
             curl wget file
 
       - name: Install pnpm
+        # Version comes from the `packageManager` field in package.json.
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Install Node
         uses: actions/setup-node@v4

@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "packageManager": "pnpm@11.9.0",
   "description": "OpenLeaf - a local-first, cross-platform LaTeX & resume authoring app.",
   "scripts": {
     "dev": "vite",
