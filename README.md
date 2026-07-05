@@ -206,4 +206,4 @@ Found a security issue? Report it privately, see [SECURITY.md](SECURITY.md). Eve
 
 Built on [Tectonic](https://tectonic-typesetting.github.io/), [Tauri](https://tauri.app/), [CodeMirror](https://codemirror.net/), [pdf.js](https://mozilla.github.io/pdf.js/), [React](https://react.dev/), [Zustand](https://github.com/pmndrs/zustand), [Tailwind CSS](https://tailwindcss.com/), [Geist](https://vercel.com/geist/introduction), [Harper](https://writewithharper.com/), and [Hunspell](https://hunspell.github.io/).
 
-**License:** [Apache-2.0](LICENSE) © 2026 Prajwal S Venkateshmurthy and contributors.
+**License:** [Apache-2.0](LICENSE) © 2026 Prajwal S Venkateshmurthy and contributors. Bundled open-source components are listed in [THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES.md).
