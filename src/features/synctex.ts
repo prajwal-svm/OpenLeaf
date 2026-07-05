@@ -31,13 +31,40 @@ export async function forwardFromCursor() {
   }
 }
 
-/** Inverse SyncTeX: PDF click → editor cursor. */
+/** Wait `n` animation frames, so a just-opened file has time to mount before we
+ *  move the cursor into it. */
+function nextFrames(n: number): Promise<void> {
+  return new Promise((resolve) => {
+    const step = (k: number) =>
+      k <= 0 ? resolve() : requestAnimationFrame(() => step(k - 1));
+    step(n);
+  });
+}
+
+/** Inverse SyncTeX: PDF click → editor cursor. In a multi-file project the click
+ *  may land on content from a different file (an `\input` child), so switch to
+ *  that file before jumping. `hit.file` is a basename; resolve it against the
+ *  project tree. */
 export async function inverseFromClick(page: number, x: number, y: number) {
-  const { projectId, mainDoc } = useFilesStore.getState();
+  const store = useFilesStore.getState();
+  const { projectId, mainDoc } = store;
   if (!projectId) return;
   try {
     const hit = await synctexInverse(projectId, mainDoc, page, x, y);
-    if (hit) gotoLine(hit.line);
+    if (!hit) return;
+
+    const { activePath, tree } = useFilesStore.getState();
+    const activeBase = activePath?.split("/").pop();
+    if (hit.file && hit.file !== activeBase) {
+      const match = tree.find(
+        (f) => !f.is_dir && f.path.split("/").pop() === hit.file
+      );
+      if (match && match.path !== activePath) {
+        await store.openFile(match.path);
+        await nextFrames(2); // let the editor mount the new file
+      }
+    }
+    gotoLine(hit.line);
   } catch (e) {
     void logError("synctex inverse", e);
   }

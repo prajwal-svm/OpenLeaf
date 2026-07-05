@@ -59,6 +59,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Inverse SyncTeX across multiple files** - Cmd/Ctrl-clicking the PDF now
+  opens the correct source file (an `\input` child) before jumping to the line,
+  instead of landing on that line number in whatever file happened to be open.
 - **Offline compile crashing with "unexpected argument '--only-cached'"** - the
   offline-mode flag was placed before Tectonic's `compile` subcommand instead of
   after it. Fixed and covered by tests.

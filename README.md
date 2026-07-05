@@ -107,11 +107,11 @@ You get the polish of a cloud editor without handing your documents to one.
 | Works offline | Yes | No | Yes |
 | Git built in | Yes | Add-on | Manual |
 | Resume mode (ATS-clean, branchable) | Yes | Templates | No |
-| AI assistant | Built-in · your key or local Ollama | Paid add-on | Extensions |
+| AI assistant | Built-in · BYOK or local Ollama | Paid add-on | Extensions |
 | Files stay on your disk | Yes | No | Yes |
 | No account required | Yes | No | Yes |
 
-Different tools, different bets. OpenLeaf's is that your documents belong on your machine, in Git, with AI you control.
+Different tools, different bets. OpenLeaf's is that your documents belong on your machine, in Git, with AI you control and give access to.
 
 <br/>
 
