@@ -25,16 +25,6 @@ Your files stay on your disk. Every project is a real Git repo. Bring your own A
 
 <br/>
 
-<table align="center">
-<tr>
-<td width="50%"><img src="docs/media/synctex.gif" alt="Cmd/Ctrl-click the PDF, jump to the source" width="100%" /><p align="center"><b>⌘/Ctrl-click the PDF, jump to the source</b></p></td>
-<td width="50%"><img src="docs/media/hero-editor.gif" alt="Generate a resume from a template" width="100%" /><p align="center"><b>Resumes work out of the box</b></p></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><img src="docs/media/ai-fix.gif" alt="AI fixes a LaTeX error" width="100%" /><p align="center"><b>Let the AI fix a LaTeX error</b></p></td>
-</tr>
-</table>
-
 <div align="center">
 
 **[Download the app](https://github.com/prajwal-svm/OpenLeaf/releases/latest) · [Build from source](docs/install.md) · [Docs](docs) · [Roadmap](#roadmap)**
@@ -47,7 +37,17 @@ If OpenLeaf is useful to you, a star helps other people find it.
 
 <br/>
 
----
+<table align="center">
+<tr>
+<td width="50%"><img src="docs/media/synctex.gif" alt="Cmd/Ctrl-click the PDF, jump to the source" width="100%" /><p align="center"><b>⌘/Ctrl-click the PDF, jump to the source</b></p></td>
+<td width="50%"><img src="docs/media/hero-editor.gif" alt="Generate a resume from a template" width="100%" /><p align="center"><b>Resumes work out of the box</b></p></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><img src="docs/media/ai-fix.gif" alt="AI fixes a LaTeX error" width="100%" /><p align="center"><b>Let the AI fix a LaTeX error</b></p></td>
+</tr>
+</table>
+
+<br/>
 
 ## Install
 
