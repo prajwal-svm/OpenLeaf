@@ -27,7 +27,7 @@ Your files stay on your disk. Every project is a real Git repo. Bring your own A
 
 <table align="center">
 <tr>
-<td width="50%"><img src="docs/media/synctex.gif" alt="Click the PDF, jump to the source" /><p align="center"><b>Click the PDF, jump to the source</b></p></td>
+<td width="50%"><img src="docs/media/synctex.gif" alt="Cmd/Ctrl-click the PDF, jump to the source" /><p align="center"><b>⌘/Ctrl-click the PDF, jump to the source</b></p></td>
 <td width="50%"><img src="docs/media/ai-fix.gif" alt="AI fixes a LaTeX error" /><p align="center"><b>Let the AI fix a LaTeX error</b></p></td>
 </tr>
 <tr>
@@ -276,8 +276,8 @@ atomically at `0600`.
 wrapper that neutralizes pdfLaTeX-only primitives, streams the live TeX log to
 the editor as it runs, parses the `.log` into structured errors, and hands back
 the PDF as raw bytes. A companion SyncTeX layer reads the gzip-compressed
-`.synctex.gz` and maps source to PDF both ways, so you can click the PDF to land
-on the source line, or move the cursor to highlight the rendered box.
+`.synctex.gz` and maps source to PDF both ways, so you can Cmd/Ctrl-click the PDF
+to land on the source line, or move the cursor to highlight the rendered box.
 
 **Checking prose without a LaTeX parser.** Grammar and spelling run entirely
 offline (Harper and Hunspell, both WASM). The trick is masking: commands, math,
