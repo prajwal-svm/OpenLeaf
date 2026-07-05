@@ -141,17 +141,42 @@ For privacy there's a full offline mode, no account, and no telemetry.
 ## Architecture
 
 ```mermaid
-flowchart TD
-    subgraph App["OpenLeaf · Tauri 2 Desktop App"]
-        UI["React Webview<br/>File Tree · CodeMirror 6 · pdf.js · AI · Source Control"]
-        Rust["Rust Backend<br/>project store · compile · synctex · git · github"]
-        Tec["Tectonic Sidecar<br/>XeTeX · ATS-clean PDF"]
-        UI <-->|Tauri IPC| Rust
-        Rust -->|spawn| Tec
+flowchart TB
+    subgraph WEB["React 19 Webview — UI only, no direct disk or network"]
+        direction LR
+        EDIT["Editor<br/>CodeMirror 6 · LaTeX grammar<br/>Vim mode · command palette"]
+        LANG["Language checks<br/>LaTeX-mask → Harper + Hunspell<br/>(WASM, offline, offset-mapped)"]
+        PDFV["PDF viewer<br/>pdf.js · SyncTeX click-to-source"]
+        CHAT["AI agent panel<br/>multi-step tool loop · approval gate"]
+        SRC["Source control<br/>diff · history · publish"]
     end
-    Rust --> Disk[("~/.openleaf/projects/&lt;id&gt;/<br/>*.tex · *.bib · img/ · .git")]
-    Rust -.->|opt-in sync| GH[("GitHub")]
-    UI -.->|bring your own key| AI[("OpenAI · Anthropic · Ollama · …")]
+
+    BOUND{{"Tauri IPC — the only trust boundary<br/>every filesystem / process / network call crosses here"}}
+
+    subgraph RUST["Rust Core — owns disk, processes &amp; secrets"]
+        direction LR
+        GUARD["Path sandbox<br/>abs / .. / symlink rejected<br/>scoped per project"]
+        COMP["Compile orchestrator<br/>Tectonic wrapper · log → errors<br/>raw-bytes PDF · live log stream"]
+        STX["SyncTeX engine<br/>.synctex.gz ↔ source line<br/>(bidirectional)"]
+        VCS["Git + GitHub<br/>env credential helper<br/>token never in webview/argv"]
+        CFG["Config @ 0600<br/>keys never leave the core"]
+        UPD["Auto-updater<br/>minisign verify before install"]
+    end
+
+    TEC[["Tectonic sidecar<br/>XeTeX typesetting engine"]]
+    DISK[("~/.openleaf<br/>every project a real git repo")]
+    GH[("GitHub<br/>opt-in sync")]
+    AI[("OpenAI · Anthropic · Ollama<br/>bring-your-own-key")]
+    FEED[("Signed release feed<br/>latest.json + .sig")]
+
+    WEB <==>|invoke · events| BOUND
+    BOUND <==> RUST
+    COMP -->|spawn| TEC
+    GUARD --> DISK
+    VCS --> DISK
+    VCS -.->|push / pull| GH
+    CHAT -.->|streams directly| AI
+    UPD -.->|checks + verifies| FEED
 ```
 
 OpenLeaf is local-first: a React webview for the UI, a Rust core that owns every
