@@ -1,0 +1,85 @@
+import { useEffect, useState } from "react";
+import { History, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useSettingsStore } from "@/store/settings";
+import { useFilesStore } from "@/store/files";
+import { gitLog, type GitCommit } from "@/lib/tauri";
+
+export function HistoryModal() {
+  const open = useSettingsStore((s) => s.historyOpen);
+  const setOpen = useSettingsStore((s) => s.setHistoryOpen);
+  const projectId = useFilesStore((s) => s.projectId);
+  const restoreFromGit = useFilesStore((s) => s.restoreFromGit);
+  const [commits, setCommits] = useState<GitCommit[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open || !projectId) return;
+    void gitLog(projectId).then(setCommits).catch(() => setCommits([]));
+  }, [open, projectId]);
+
+  if (!open) return null;
+
+  const restore = async (oid: string) => {
+    setBusy(true);
+    try {
+      await restoreFromGit(oid);
+      setOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={() => setOpen(false)}
+    >
+      <div
+        className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-xl border bg-popover text-popover-foreground shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 border-b p-4">
+          <History className="size-4" />
+          <h2 className="text-base font-semibold">History</h2>
+          <span className="ml-auto text-xs text-muted-foreground">Git</span>
+        </div>
+        <div className="flex-1 overflow-auto p-2">
+          {commits.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              No history yet. Compile to snapshot your work.
+            </p>
+          )}
+          {commits.map((c) => (
+            <div
+              key={c.oid}
+              className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-accent"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm">{c.message}</div>
+                <div className="font-mono text-xs text-muted-foreground">
+                  {new Date(c.time * 1000).toLocaleString()} · {c.short}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => void restore(c.oid)}
+                title="Restore this version"
+              >
+                <RotateCcw className="size-3.5" />
+                Restore
+              </Button>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end border-t p-3">
+          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+            Close
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

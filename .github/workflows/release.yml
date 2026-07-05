@@ -1,0 +1,136 @@
+name: Release
+
+# Cuts a GitHub Release with downloadable installers for macOS (Apple Silicon +
+# Intel), Windows, and Linux. Trigger by pushing a version tag:
+#
+#     git tag v0.1.0 && git push origin v0.1.0
+#
+# or run manually from the Actions tab (provide the tag to attach to). The
+# release is created as a DRAFT so a maintainer can review the notes and the
+# attached artifacts before publishing.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build & attach the release to (e.g. v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write # tauri-action needs this to create the release & upload assets
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (Apple Silicon)
+            os: macos-14
+            rust_target: aarch64-apple-darwin
+            args: "--target aarch64-apple-darwin"
+          - name: macOS (Intel)
+            os: macos-13
+            rust_target: x86_64-apple-darwin
+            args: "--target x86_64-apple-darwin"
+          - name: Linux (x86_64)
+            os: ubuntu-22.04
+            rust_target: x86_64-unknown-linux-gnu
+            args: ""
+          - name: Windows (x86_64)
+            os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            args: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies (Tauri)
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libxdo-dev \
+            build-essential \
+            curl wget file
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Fetch the Tectonic LaTeX-compiler sidecar for the build target. Tauri
+      # bundles it (bundle.externalBin) so the shipped app compiles offline.
+      - name: Fetch Tectonic sidecar (Unix)
+        if: matrix.os != 'windows-latest'
+        run: bash scripts/fetch-tectonic.sh ${{ matrix.rust_target }}
+
+      - name: Fetch Tectonic sidecar (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $version = '0.16.9'   # keep in sync with scripts/fetch-tectonic.sh
+          $target  = 'x86_64-pc-windows-msvc'
+          $asset   = "tectonic-$version-$target.zip"
+          $url     = "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40$version/$asset"
+          $tmp     = Join-Path $env:RUNNER_TEMP 'tectonic'
+          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+          Invoke-WebRequest -Uri $url -OutFile "$tmp/archive.zip"
+          Expand-Archive -Path "$tmp/archive.zip" -DestinationPath "$tmp/x" -Force
+          $bin = Get-ChildItem -Path "$tmp/x" -Recurse -Filter tectonic.exe | Select-Object -First 1
+          New-Item -ItemType Directory -Force -Path src-tauri/binaries | Out-Null
+          Copy-Item $bin.FullName "src-tauri/binaries/tectonic-$target.exe"
+
+      - name: Build & release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the updater artifacts and generates `latest.json`. Set these
+          # repo secrets (see docs/updates.md); without them the build still
+          # succeeds but produces no auto-update feed.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: "OpenLeaf ${{ github.event.inputs.tag || github.ref_name }}"
+          releaseBody: |
+            Download the installer for your platform below.
+
+            - **macOS (Apple Silicon)** - `.dmg` ending in `aarch64`
+            - **macOS (Intel)** - `.dmg` ending in `x64`
+            - **Windows** - `.msi` or `-setup.exe`
+            - **Linux** - `.AppImage` or `.deb`
+
+            > macOS/Windows builds are currently unsigned. See the install docs
+            > for how to open an unsigned build on first launch.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

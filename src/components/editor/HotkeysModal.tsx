@@ -1,0 +1,100 @@
+import { useMemo, useState } from "react";
+import { Search, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useSettingsStore } from "@/store/settings";
+
+const SHORTCUTS: { category: string; keys: string; desc: string }[] = [
+  { category: "Compile", keys: "⌘↵", desc: "Recompile" },
+  { category: "Compile", keys: "⌘K → Recompile", desc: "Via command palette" },
+  { category: "Editor", keys: "⌘B", desc: "Bold (\\textbf)" },
+  { category: "Editor", keys: "⌘I", desc: "Italic (\\textit)" },
+  { category: "Editor", keys: "⌘F", desc: "Find & replace" },
+  { category: "Editor", keys: "⌘Z", desc: "Undo" },
+  { category: "Editor", keys: "⌘⇧Z", desc: "Redo" },
+  { category: "Editor", keys: "Ctrl-Space", desc: "Trigger autocomplete" },
+  { category: "Editor", keys: "/", desc: "Slash-command insert menu" },
+  { category: "Editor", keys: "Tab", desc: "Indent / accept autocomplete" },
+  { category: "Navigation", keys: "⌘K", desc: "Command palette" },
+  { category: "Navigation", keys: "⌘⇧F", desc: "Search all documents" },
+  { category: "Navigation", keys: "⌘⇧J", desc: "Go to PDF (SyncTeX forward)" },
+  { category: "PDF", keys: "⌘/Ctrl-click", desc: "Jump to source from PDF" },
+  { category: "Git", keys: "Toolbar → Git icon", desc: "Commit & push" },
+  { category: "Settings", keys: "Toolbar → ⚙", desc: "Open settings" },
+];
+
+export function HotkeysModal() {
+  const open = useSettingsStore((s) => s.hotkeysOpen);
+  const setOpen = useSettingsStore((s) => s.setHotkeysOpen);
+  const [q, setQ] = useState("");
+
+  const filtered = useMemo(
+    () =>
+      SHORTCUTS.filter(
+        (s) =>
+          s.desc.toLowerCase().includes(q.toLowerCase()) ||
+          s.category.toLowerCase().includes(q.toLowerCase()) ||
+          s.keys.toLowerCase().includes(q.toLowerCase())
+      ),
+    [q]
+  );
+
+  const categories = useMemo(
+    () => Array.from(new Set(filtered.map((s) => s.category))),
+    [filtered]
+  );
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"
+      onClick={() => setOpen(false)}
+    >
+      <div
+        className="flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex h-12 items-center justify-between border-b border-sidebar-border px-5">
+          <h2 className="text-sm font-semibold">Keyboard Shortcuts</h2>
+          <Button variant="ghost" size="icon" className="size-7" onClick={() => setOpen(false)}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="border-b border-sidebar-border p-3">
+          <div className="flex items-center gap-2 rounded-md border border-input bg-background px-3">
+            <Search className="size-4 text-muted-foreground" />
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search shortcuts…"
+              className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto p-4">
+          {categories.map((cat, ci) => (
+            <div key={cat} className={ci > 0 ? "mb-4 border-t border-sidebar-border pt-4" : "mb-4"}>
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {cat}
+              </div>
+              {filtered
+                .filter((s) => s.category === cat)
+                .map((s, i) => (
+                  <div key={i} className="flex items-center justify-between py-1.5">
+                    <span className="text-sm">{s.desc}</span>
+                    <kbd className="rounded border border-sidebar-border bg-background px-2 py-0.5 font-mono text-xs">
+                      {s.keys}
+                    </kbd>
+                  </div>
+                ))}
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">No shortcuts found.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

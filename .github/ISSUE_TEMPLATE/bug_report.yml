@@ -1,0 +1,60 @@
+name: 🐛 Bug report
+description: Report something that isn't working the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! Please search
+        [existing issues](https://github.com/prajwal-svm/OpenLeaf/issues) first.
+
+        **Security issue?** Do not file it here - see
+        [SECURITY.md](https://github.com/prajwal-svm/OpenLeaf/blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected instead.
+      placeholder: When I click Compile, the PDF pane stays blank and…
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The smaller and more exact, the faster we can fix it.
+      placeholder: |
+        1. Create a new project from the IEEE template
+        2. Add `\includegraphics{missing.png}`
+        3. Click Compile
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: OpenLeaf version
+      description: Find it in the About dialog (or the release you downloaded).
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >
+        If relevant, paste the compile log or the contents of
+        `~/.openleaf/app.log`. Remove anything sensitive first.
+      render: shell
+    validations:
+      required: false

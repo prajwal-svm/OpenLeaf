@@ -1,0 +1,37 @@
+[package]
+name = "openleaf"
+version = "0.1.0"
+description = "OpenLeaf - local-first LaTeX & resume authoring"
+authors = ["OpenLeaf"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "openleaf_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+# In-app auto-update: checks the GitHub Releases `latest.json`, verifies the
+# minisign signature against the pubkey in tauri.conf.json, and installs. The
+# process plugin provides `relaunch()` to restart into the new version.
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# Async HTTP client for the GitHub OAuth device flow, which can't be called
+# from the webview (CORS). The API endpoints on api.github.com are still called
+# directly from the frontend; only the OAuth endpoints run here. Commands are
+# async + single-shot so they never block the webview thread.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

@@ -1,0 +1,86 @@
+mod commands;
+mod config;
+mod git;
+mod github;
+mod ollama;
+mod paths;
+mod project;
+mod state;
+mod synctex;
+
+use state::AppState;
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    paths::run_migrations();
+    // One-time hardening: strip any token baked into a project's `origin` remote
+    // by earlier builds (auth now flows through the env credential helper).
+    git::scrub_remote_credentials();
+
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init());
+
+    // The updater and process plugins are desktop-only.
+    #[cfg(desktop)]
+    {
+        builder = builder
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_process::init());
+    }
+
+    builder
+        .manage(AppState::default())
+        .invoke_handler(tauri::generate_handler![
+            commands::library_root,
+            commands::app_version,
+            commands::compile_project,
+            github::gh_request_device_code,
+            github::gh_check_device_token,
+            ollama::ollama_list_models,
+            synctex::synctex_forward,
+            synctex::synctex_inverse,
+            project::list_files,
+            project::read_file,
+            project::write_file,
+            project::create_file,
+            project::delete_file,
+            project::rename_file,
+            project::copy_file,
+            project::save_file_base64,
+            project::read_file_base64,
+            project::append_app_log,
+            project::set_main_doc,
+            project::get_project,
+            project::list_projects,
+            project::create_project,
+            project::list_templates,
+            project::create_project_from_template,
+            project::export_pdf,
+            project::export_document,
+            project::search_docs,
+            project::search_project,
+            project::download_project_zip,
+            project::duplicate_project,
+            project::clear_build_cache,
+            project::delete_project,
+            config::get_config,
+            config::set_config,
+            git::git_auto_commit,
+            git::git_log,
+            git::git_restore,
+            git::git_set_remote,
+            git::git_remove_remote,
+            git::git_get_remote,
+            git::git_current_branch,
+            git::git_ahead_behind,
+            git::git_push,
+            git::git_pull,
+            git::git_status,
+            git::git_diff,
+            git::git_discard,
+            git::git_head_oid,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running OpenLeaf");
+}

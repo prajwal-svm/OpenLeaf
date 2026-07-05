@@ -1,0 +1,2 @@
+# Tectonic sidecar binaries are downloaded here per target triple.
+# Tracked separately; see scripts/fetch-tectonic.<sh|ps1>.

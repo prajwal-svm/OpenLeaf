@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref (e.g. rapid pushes to a PR).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Biome lint gate. Blocks on correctness errors; the existing a11y/style
+      # backlog is reported as (non-blocking) warnings. See biome.json.
+      - name: Lint
+        run: pnpm lint
+
+      # `pnpm build` runs `tsc -b` (typecheck) then `vite build` (bundle). The
+      # frontend build needs no Tectonic sidecar.
+      - name: Typecheck & build
+        run: pnpm build
+
+      # Unit tests for the LaTeX masking (spell/grammar false-positive coverage).
+      - name: Test
+        run: pnpm test
+
+  rust:
+    name: Rust (test + clippy)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies (Tauri)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libxdo-dev \
+            build-essential \
+            curl wget file
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      # The Tauri build verifies the configured `externalBin` sidecar exists for
+      # the host target, so fetch it before compiling. Cached across runs.
+      - name: Cache Tectonic sidecar
+        id: cache-tectonic
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/binaries/tectonic-*
+          key: tectonic-${{ runner.os }}-${{ hashFiles('scripts/fetch-tectonic.sh') }}
+
+      - name: Fetch Tectonic sidecar
+        if: steps.cache-tectonic.outputs.cache-hit != 'true'
+        run: bash scripts/fetch-tectonic.sh x86_64-unknown-linux-gnu
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test --lib
+
+      # Advisory for now: the existing tree isn't rustfmt/clippy clean. Flip
+      # these to blocking (drop `continue-on-error`, add `-D warnings` to clippy)
+      # after a one-time `cargo fmt` + clippy pass. See CONTRIBUTING.md.
+      - name: Format check (advisory)
+        working-directory: src-tauri
+        continue-on-error: true
+        run: cargo fmt --check
+
+      - name: Clippy (advisory)
+        working-directory: src-tauri
+        continue-on-error: true
+        run: cargo clippy --all-targets

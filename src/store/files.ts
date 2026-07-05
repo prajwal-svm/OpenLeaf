@@ -1,0 +1,329 @@
+import { create } from "zustand";
+import {
+  createFile as apiCreateFile,
+  copyFile as apiCopyFile,
+  createProject as apiCreateProject,
+  createProjectFromTemplate as apiCreateFromTemplate,
+  deleteFile as apiDeleteFile,
+  gitRestore,
+  getProject,
+  listFiles,
+  listProjects,
+  readFileContent,
+  renameFile as apiRenameFile,
+  setMainDocCmd,
+  writeFileContent,
+  type FileEntry,
+  type ProjectInfo,
+} from "@/lib/tauri";
+import { logError } from "@/lib/log";
+
+interface FileState {
+  content: string;
+  dirty: boolean;
+}
+
+interface FilesStore {
+  projectId: string | null;
+  projectName: string;
+  mainDoc: string;
+  tree: FileEntry[];
+  files: Record<string, FileState>;
+  openTabs: string[];
+  activePath: string | null;
+  projects: ProjectInfo[];
+  loading: boolean;
+  docVersion: number;
+
+  // library
+  refreshProjects: () => Promise<void>;
+  openProject: (id: string) => Promise<void>;
+  closeProject: () => void;
+  createProject: (name: string) => Promise<void>;
+  createFromTemplate: (name: string, templateId: string) => Promise<string>;
+  restoreFromGit: (oid: string) => Promise<void>;
+
+  // files
+  refreshTree: () => Promise<void>;
+  openFile: (path: string) => Promise<void>;
+  setActive: (path: string) => void;
+  closeTab: (path: string) => void;
+  setContent: (path: string, content: string) => void;
+  saveActive: () => Promise<void>;
+  saveFile: (path: string) => Promise<void>;
+  createFile: (path: string, isDir: boolean) => Promise<void>;
+  deleteEntry: (path: string) => Promise<void>;
+  renameEntry: (from: string, to: string) => Promise<void>;
+  copyEntry: (path: string) => Promise<void>;
+  applyExternalWrite: (path: string, content: string) => void;
+  applyExternalDelete: (path: string) => void;
+  applyExternalRename: (from: string, to: string) => void;
+  setMainDoc: (path: string) => Promise<void>;
+}
+
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+export const useFilesStore = create<FilesStore>((set, get) => ({
+  projectId: null,
+  projectName: "",
+  mainDoc: "main.tex",
+  tree: [],
+  files: {},
+  openTabs: [],
+  activePath: null,
+  projects: [],
+  loading: false,
+  docVersion: 0,
+
+  refreshProjects: async () => {
+    const projects = await listProjects();
+    set({ projects });
+  },
+
+  openProject: async (id) => {
+    set({ loading: true, projectId: id });
+    try {
+      const meta = await getProject(id);
+      const tree = await listFiles(id);
+      set({ projectName: meta.name, mainDoc: meta.main_doc, tree });
+      // Preload .bib files so citation autocomplete works.
+      const bibs = tree.filter((f) => !f.is_dir && f.path.endsWith(".bib"));
+      for (const b of bibs) {
+        try {
+          const content = await readFileContent(id, b.path);
+          set((s) => ({
+            files: { ...s.files, [b.path]: { content, dirty: false } },
+          }));
+        } catch {
+          /* ignore unreadable bib */
+        }
+      }
+      await get().openFile(meta.main_doc || "main.tex");
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  closeProject: () =>
+    set({
+      projectId: null,
+      projectName: "",
+      tree: [],
+      files: {},
+      openTabs: [],
+      activePath: null,
+    }),
+
+  createProject: async (name) => {
+    const id = await apiCreateProject(name);
+    await get().refreshProjects();
+    await get().openProject(id);
+  },
+
+  createFromTemplate: async (name, templateId) => {
+    const id = await apiCreateFromTemplate(name, templateId);
+    await get().refreshProjects();
+    await get().openProject(id);
+    return id;
+  },
+
+  refreshTree: async () => {
+    const { projectId } = get();
+    if (!projectId) return;
+    const tree = await listFiles(projectId);
+    set({ tree });
+  },
+
+  openFile: async (path) => {
+    const { projectId, files } = get();
+    if (!projectId) return;
+    if (path.endsWith("/")) return;
+    // Binary files (PDFs/images) aren't readable as text - skip the text load
+    // and just open the tab; the editor renders them via a binary viewer.
+    const isBinary = /\.(pdf|png|jpe?g|gif|webp|svg|eps|zip|gz)$/i.test(path);
+    if (!files[path] && !isBinary) {
+      try {
+        const content = await readFileContent(projectId, path);
+        set((s) => ({
+          files: { ...s.files, [path]: { content, dirty: false } },
+        }));
+      } catch {
+        return;
+      }
+    }
+    set((s) => ({
+      openTabs: s.openTabs.includes(path) ? s.openTabs : [...s.openTabs, path],
+      activePath: path,
+    }));
+  },
+
+  setActive: (path) => set({ activePath: path }),
+
+  closeTab: (path) => {
+    const { openTabs, activePath } = get();
+    const next = openTabs.filter((p) => p !== path);
+    set({
+      openTabs: next,
+      activePath: activePath === path ? next[next.length - 1] ?? null : activePath,
+    });
+  },
+
+  setContent: (path, content) => {
+    set((s) => ({
+      files: { ...s.files, [path]: { content, dirty: true } },
+    }));
+    if (autosaveTimer) clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => {
+      void get().saveActive();
+    }, 1500);
+  },
+
+  saveActive: async () => {
+    const { projectId, activePath } = get();
+    if (!projectId || !activePath) return;
+    await get().saveFile(activePath);
+  },
+
+  saveFile: async (path) => {
+    const { projectId, files } = get();
+    if (!projectId || !files[path]) return;
+    await writeFileContent(projectId, path, files[path].content);
+    set((s) => ({
+      files: { ...s.files, [path]: { ...s.files[path], dirty: false } },
+    }));
+  },
+
+  createFile: async (path, isDir) => {
+    const { projectId } = get();
+    if (!projectId) return;
+    await apiCreateFile(projectId, path, isDir);
+    await get().refreshTree();
+    if (!isDir) await get().openFile(path);
+  },
+
+  deleteEntry: async (path) => {
+    const { projectId } = get();
+    if (!projectId) return;
+    await apiDeleteFile(projectId, path);
+    set((s) => {
+      const files = { ...s.files };
+      delete files[path];
+      return {
+        files,
+        openTabs: s.openTabs.filter((p) => p !== path && !p.startsWith(path + "/")),
+        activePath:
+          s.activePath === path || s.activePath?.startsWith(path + "/")
+            ? null
+            : s.activePath,
+      };
+    });
+    await get().refreshTree();
+  },
+
+  renameEntry: async (from, to) => {
+    const { projectId } = get();
+    if (!projectId) return;
+    await apiRenameFile(projectId, from, to);
+    await get().refreshTree();
+  },
+
+  copyEntry: async (path) => {
+    const { projectId } = get();
+    if (!projectId) return;
+    const slash = path.lastIndexOf("/");
+    const dir = slash >= 0 ? path.slice(0, slash) : "";
+    const file = slash >= 0 ? path.slice(slash + 1) : path;
+    const dot = file.lastIndexOf(".");
+    const base = dot > 0 ? file.slice(0, dot) : file;
+    const ext = dot > 0 ? file.slice(dot) : "";
+    const to = dir ? `${dir}/${base} copy${ext}` : `${base} copy${ext}`;
+    try {
+      await apiCopyFile(projectId, path, to);
+      await get().refreshTree();
+    } catch (e) {
+      void logError("copy file", e);
+    }
+  },
+
+  // Called after an external actor (e.g. the AI assistant) mutates a file on
+  // disk, so the in-memory editor buffer stays in sync and the next save does
+  // not clobber the edit.
+  applyExternalWrite: (path, content) => {
+    set((s) => ({
+      files: { ...s.files, [path]: { content, dirty: false } },
+      docVersion: s.activePath === path ? s.docVersion + 1 : s.docVersion,
+    }));
+    void get().refreshTree();
+  },
+
+  applyExternalDelete: (path) => {
+    set((s) => {
+      const files = { ...s.files };
+      delete files[path];
+      return {
+        files,
+        openTabs: s.openTabs.filter((p) => p !== path && !p.startsWith(path + "/")),
+        activePath:
+          s.activePath === path || s.activePath?.startsWith(path + "/")
+            ? null
+            : s.activePath,
+      };
+    });
+    void get().refreshTree();
+  },
+
+  applyExternalRename: (from, to) => {
+    set((s) => {
+      const files = { ...s.files };
+      if (files[from]) {
+        files[to] = { ...files[from] };
+        delete files[from];
+      }
+      return {
+        files,
+        openTabs: s.openTabs.map((p) =>
+          p === from ? to : p.startsWith(from + "/") ? to + p.slice(from.length) : p
+        ),
+        activePath:
+          s.activePath === from
+            ? to
+            : s.activePath?.startsWith(from + "/")
+            ? to + s.activePath!.slice(from.length)
+            : s.activePath,
+        docVersion: s.activePath === from || s.activePath?.startsWith(from + "/") ? s.docVersion + 1 : s.docVersion,
+      };
+    });
+    void get().refreshTree();
+  },
+
+  setMainDoc: async (path) => {
+    const { projectId } = get();
+    if (!projectId) return;
+    const meta = await setMainDocCmd(projectId, path);
+    set({ mainDoc: meta.main_doc });
+  },
+
+  restoreFromGit: async (oid) => {
+    const { projectId, activePath } = get();
+    if (!projectId) return;
+    await gitRestore(projectId, oid);
+    await get().refreshTree();
+    if (activePath) {
+      try {
+        const content = await readFileContent(projectId, activePath);
+        set((s) => ({
+          files: { ...s.files, [activePath]: { content, dirty: false } },
+          docVersion: s.docVersion + 1,
+        }));
+      } catch {
+        /* file may not exist at that revision */
+      }
+    }
+  },
+}));
+
+export function useActiveContent(): string {
+  return useFilesStore((s) =>
+    s.activePath ? s.files[s.activePath]?.content ?? "" : ""
+  );
+}
