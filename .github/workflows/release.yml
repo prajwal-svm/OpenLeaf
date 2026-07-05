@@ -70,7 +70,8 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # pnpm 11 requires Node >= 22.13 (see package.json `packageManager`).
+          node-version: 22
           cache: pnpm
 
       - name: Install Rust toolchain
