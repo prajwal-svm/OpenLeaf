@@ -83,7 +83,7 @@ export function Editor() {
             }}
             className={cn(
               "group flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs",
-              path === activePath
+              path === activePath && !diff
                 ? "bg-muted text-foreground"
                 : "text-muted-foreground hover:bg-accent"
             )}
@@ -105,6 +105,22 @@ export function Editor() {
             </span>
           </button>
         ))}
+        {diff && (
+          <div className="group flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-muted px-2.5 text-xs text-foreground">
+            {basename(diff.path)}
+            <span className="text-muted-foreground">
+              ({diff.side === "staged" ? "Index" : "Working Tree"})
+            </span>
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={closeDiff}
+              className="ml-0.5 cursor-pointer rounded p-0.5 hover:bg-accent"
+            >
+              <X className="size-3" />
+            </span>
+          </div>
+        )}
       </div>
       {/* Editor body */}
       {diff ? (

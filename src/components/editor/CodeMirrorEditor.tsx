@@ -48,6 +48,8 @@ export function CodeMirrorEditor() {
   const vimCompartmentRef = useRef<Compartment | null>(null);
   const spellCompartmentRef = useRef<Compartment | null>(null);
   const langCompartmentRef = useRef<Compartment | null>(null);
+  const historyCompartmentRef = useRef<Compartment | null>(null);
+  const prevPathRef = useRef<string | null>(null);
   const suppressSyncRef = useRef(false);
 
   const activePath = useFilesStore((s) => s.activePath);
@@ -76,6 +78,9 @@ export function CodeMirrorEditor() {
     spellCompartmentRef.current = spellCompartment;
     const langCompartment = new Compartment();
     langCompartmentRef.current = langCompartment;
+    const historyCompartment = new Compartment();
+    historyCompartmentRef.current = historyCompartment;
+    prevPathRef.current = initialPath;
     const initialSpell = useSettingsStore.getState().spellcheck;
     const initialHarper = useSettingsStore.getState().harper;
     const initialLang = initialPath ? languageForPath(initialPath) : null;
@@ -101,7 +106,7 @@ export function CodeMirrorEditor() {
         EditorView.lineWrapping,
         langCompartment.of(initialLang ? initialLang : []),
         editorTheme(),
-        history(),
+        historyCompartment.of(history()),
         autocompletion({
           override: [latexCompletions, slashCompletions],
           activateOnTyping: true,
@@ -153,16 +158,29 @@ export function CodeMirrorEditor() {
   useEffect(() => {
     const view = viewRef.current;
     if (!view || !activePath) return;
+    const pathChanged = prevPathRef.current !== activePath;
     suppressSyncRef.current = true;
     const current = view.state.doc.toString();
+    const lang = languageForPath(activePath);
+    const effects = [langCompartmentRef.current!.reconfigure(lang ? lang : [])];
+    // Drop the undo history when moving to a different file, so undo/redo never
+    // crosses file boundaries (a change from file A must not replay into file B).
+    if (pathChanged) {
+      effects.push(historyCompartmentRef.current!.reconfigure([]));
+    }
     if (current !== activeContent) {
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: activeContent },
+        effects,
       });
+    } else {
+      view.dispatch({ effects });
     }
-    // Reconfigure the language grammar for the new file type.
-    const lang = languageForPath(activePath);
-    view.dispatch({ effects: langCompartmentRef.current!.reconfigure(lang ? lang : []) });
+    // Re-install a fresh, empty history for the new file.
+    if (pathChanged) {
+      view.dispatch({ effects: historyCompartmentRef.current!.reconfigure(history()) });
+    }
+    prevPathRef.current = activePath;
     queueMicrotask(() => {
       suppressSyncRef.current = false;
     });

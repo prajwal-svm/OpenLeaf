@@ -231,3 +231,32 @@ select:focus-visible {
   color: transparent;
   animation: ai-shimmer 1.6s linear infinite;
 }
+
+/* --- CodeMirror merge (git diff) colors — stronger than the library defaults,
+   and legible on the dark (near-black) editor background. --- */
+/* Light theme (default). `a` = old side (deletions), `b` = new side (insertions). */
+.cm-changedLine { background-color: #ccf2d9; }            /* inserted (new / unified) */
+.cm-changedText { background-color: #97e0b3; }
+.cm-merge-a .cm-changedLine { background-color: #ffd4d9; } /* deleted (old side) */
+.cm-merge-a .cm-changedText { background-color: #f6a7af; }
+.cm-deletedChunk { background-color: #ffe1e4; }
+.cm-deletedChunk .cm-deletedText,
+.cm-deletedText { background-color: #f6a7af; }
+.cm-collapsedLines {
+  background: #e5e7eb;
+  color: #374151;
+}
+.cm-collapsedLines:hover { background: #d5d9df; }
+
+.dark .cm-changedLine { background-color: #14351f; }
+.dark .cm-changedText { background-color: #1f5c33; }
+.dark .cm-merge-a .cm-changedLine { background-color: #45191e; }
+.dark .cm-merge-a .cm-changedText { background-color: #7a2630; }
+.dark .cm-deletedChunk { background-color: #3a161a; }
+.dark .cm-deletedChunk .cm-deletedText,
+.dark .cm-deletedText { background-color: #7a2630; }
+.dark .cm-collapsedLines {
+  background: #1f2937;
+  color: #9ca3af;
+}
+.dark .cm-collapsedLines:hover { background: #283445; }

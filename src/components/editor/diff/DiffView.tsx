@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, lineNumbers } from "@codemirror/view";
 import { MergeView, unifiedMergeView } from "@codemirror/merge";
-import { Columns2, GitCompare, Rows3, X } from "lucide-react";
+import { Columns2, GitCompare, Rows3 } from "lucide-react";
 import { editorTheme } from "../cm/theme";
 import { languageForPath } from "../cm/languages";
 import { gitShow, readFileContent } from "@/lib/tauri";
@@ -20,7 +20,6 @@ export function DiffView() {
   const diff = useDiffStore((s) => s.diff);
   const mode = useDiffStore((s) => s.mode);
   const setMode = useDiffStore((s) => s.setMode);
-  const closeDiff = useDiffStore((s) => s.closeDiff);
   const projectId = useFilesStore((s) => s.projectId);
   const hostRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -98,44 +97,33 @@ export function DiffView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
-        <GitCompare className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate text-xs">{diff.path}</span>
-        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+      <div className="flex h-8 shrink-0 items-center gap-2 border-b px-2">
+        <GitCompare className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="text-[11px] text-muted-foreground">
           {diff.side === "staged" ? "Staged ↔ HEAD" : "Working ↔ Index"}
         </span>
-        <div className="ml-auto flex shrink-0 items-center gap-1">
-          <div className="flex overflow-hidden rounded-md border">
-            <button
-              type="button"
-              onClick={() => setMode("split")}
-              aria-label="Split view"
-              className={cn(
-                "flex size-6 items-center justify-center",
-                mode === "split" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent",
-              )}
-            >
-              <Columns2 className="size-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("unified")}
-              aria-label="Unified view"
-              className={cn(
-                "flex size-6 items-center justify-center",
-                mode === "unified" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent",
-              )}
-            >
-              <Rows3 className="size-3.5" />
-            </button>
-          </div>
+        <div className="ml-auto flex overflow-hidden rounded-md border">
           <button
             type="button"
-            onClick={closeDiff}
-            aria-label="Close diff"
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            onClick={() => setMode("split")}
+            aria-label="Split view"
+            className={cn(
+              "flex size-6 items-center justify-center",
+              mode === "split" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent",
+            )}
           >
-            <X className="size-3.5" />
+            <Columns2 className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("unified")}
+            aria-label="Unified view"
+            className={cn(
+              "flex size-6 items-center justify-center",
+              mode === "unified" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent",
+            )}
+          >
+            <Rows3 className="size-3.5" />
           </button>
         </div>
       </div>
