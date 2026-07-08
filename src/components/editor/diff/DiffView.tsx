@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, lineNumbers } from "@codemirror/view";
-import { MergeView, unifiedMergeView } from "@codemirror/merge";
-import { Columns2, GitCompare, Rows3 } from "lucide-react";
+import { MergeView, goToNextChunk, goToPreviousChunk, unifiedMergeView } from "@codemirror/merge";
+import { ChevronDown, ChevronUp, Columns2, GitCompare, Rows3 } from "lucide-react";
 import { editorTheme } from "../cm/theme";
 import { languageForPath } from "../cm/languages";
 import { gitShow, readFileContent, writeFileContent } from "@/lib/tauri";
@@ -23,6 +23,7 @@ export function DiffView() {
   const setMode = useDiffStore((s) => s.setMode);
   const projectId = useFilesStore((s) => s.projectId);
   const hostRef = useRef<HTMLDivElement>(null);
+  const navViewRef = useRef<EditorView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -80,7 +81,7 @@ export function DiffView() {
         const newExt: Extension[] = editable ? [...base, onEdit] : [...base, ...readOnly];
 
         if (mode === "split") {
-          view = new MergeView({
+          const mv = new MergeView({
             a: { doc: oldText, extensions: oldExt },
             b: { doc: newText, extensions: newExt },
             parent: host,
@@ -88,8 +89,10 @@ export function DiffView() {
             gutter: true,
             collapseUnchanged: { margin: 3, minSize: 4 },
           });
+          view = mv;
+          navViewRef.current = mv.b;
         } else {
-          view = new EditorView({
+          const ev = new EditorView({
             doc: newText,
             extensions: [
               unifiedMergeView({ original: oldText, mergeControls: false }),
@@ -97,6 +100,8 @@ export function DiffView() {
             ],
             parent: host,
           });
+          view = ev;
+          navViewRef.current = ev;
         }
         setLoading(false);
       } catch (e) {
@@ -112,9 +117,17 @@ export function DiffView() {
       cancelled = true;
       if (writeTimer) clearTimeout(writeTimer);
       view?.destroy();
+      navViewRef.current = null;
       if (hostRef.current) hostRef.current.innerHTML = "";
     };
   }, [diff, mode, projectId]);
+
+  const goChunk = (dir: "next" | "prev") => {
+    const v = navViewRef.current;
+    if (!v) return;
+    (dir === "next" ? goToNextChunk : goToPreviousChunk)(v);
+    v.focus();
+  };
 
   if (!diff) return null;
 
@@ -125,7 +138,27 @@ export function DiffView() {
         <span className="text-[11px] text-muted-foreground">
           {diff.side === "staged" ? "Staged ↔ HEAD" : "Working ↔ Index"}
         </span>
-        <div className="ml-auto flex overflow-hidden rounded-md border">
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => goChunk("prev")}
+            aria-label="Previous change"
+            title="Previous change"
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <ChevronUp className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => goChunk("next")}
+            aria-label="Next change"
+            title="Next change"
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <ChevronDown className="size-3.5" />
+          </button>
+        </div>
+        <div className="flex overflow-hidden rounded-md border">
           <button
             type="button"
             onClick={() => setMode("split")}

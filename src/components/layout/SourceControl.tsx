@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  Check,
   GitBranch,
   Github,
   Loader2,
@@ -8,6 +9,7 @@ import {
   RefreshCw,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { useFilesStore } from "@/store/files";
 import { useDiffStore } from "@/store/diff";
@@ -72,6 +74,7 @@ export function SourceControl() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState<string | null>(null);
   const openDiff = useDiffStore((s) => s.openDiff);
 
   const refresh = useCallback(async () => {
@@ -226,15 +229,38 @@ export function SourceControl() {
             {dir && <span className="block truncate text-[10px] text-muted-foreground">{dir}</span>}
           </span>
         </button>
-        {!c.staged && (
-          <button
-            onClick={() => void discard(c.path)}
-            aria-label="Discard changes"
-            className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-destructive group-hover:opacity-100"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
-        )}
+        {!c.staged &&
+          (confirmDiscard === c.path ? (
+            <>
+              <button
+                onClick={() => {
+                  setConfirmDiscard(null);
+                  void discard(c.path);
+                }}
+                aria-label="Confirm discard"
+                title="Discard all changes to this file"
+                className="flex size-6 shrink-0 items-center justify-center rounded text-destructive hover:bg-destructive/10"
+              >
+                <Check className="size-3.5" />
+              </button>
+              <button
+                onClick={() => setConfirmDiscard(null)}
+                aria-label="Cancel"
+                className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setConfirmDiscard(c.path)}
+              aria-label="Discard changes"
+              title="Discard changes"
+              className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-destructive group-hover:opacity-100"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          ))}
         <button
           onClick={() => void (c.staged ? unstageFile(c.path) : stageFile(c.path))}
           aria-label={c.staged ? "Unstage" : "Stage"}

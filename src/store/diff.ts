@@ -17,11 +17,28 @@ interface DiffState {
   setMode: (mode: DiffMode) => void;
 }
 
+const MODE_KEY = "openleaf.diffMode";
+
+function loadMode(): DiffMode {
+  try {
+    return localStorage.getItem(MODE_KEY) === "unified" ? "unified" : "split";
+  } catch {
+    return "split";
+  }
+}
+
 /** The git diff currently shown in the editor area (replaces the old modal). */
 export const useDiffStore = create<DiffState>((set) => ({
   diff: null,
-  mode: "split",
+  mode: loadMode(),
   openDiff: (path, side) => set({ diff: { path, side } }),
   closeDiff: () => set({ diff: null }),
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => {
+    try {
+      localStorage.setItem(MODE_KEY, mode);
+    } catch {
+      /* ignore */
+    }
+    set({ mode });
+  },
 }));
