@@ -44,6 +44,8 @@ export function Editor() {
   const closeTab = useFilesStore((s) => s.closeTab);
   const dirtyMap = useFilesStore((s) => s.files);
   const diff = useDiffStore((s) => s.diff);
+  const diffActive = useDiffStore((s) => s.active);
+  const setDiffActive = useDiffStore((s) => s.setDiffActive);
   const closeDiff = useDiffStore((s) => s.closeDiff);
 
   useEffect(() => {
@@ -78,12 +80,12 @@ export function Editor() {
           <button
             key={path}
             onClick={() => {
-              closeDiff();
+              setDiffActive(false);
               setActive(path);
             }}
             className={cn(
               "group flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs",
-              path === activePath && !diff
+              path === activePath && !diffActive
                 ? "bg-muted text-foreground"
                 : "text-muted-foreground hover:bg-accent"
             )}
@@ -106,7 +108,13 @@ export function Editor() {
           </button>
         ))}
         {diff && (
-          <div className="group flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-muted px-2.5 text-xs text-foreground">
+          <button
+            onClick={() => setDiffActive(true)}
+            className={cn(
+              "group flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs",
+              diffActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-accent"
+            )}
+          >
             {basename(diff.path)}
             <span className="text-muted-foreground">
               ({diff.side === "staged" ? "Index" : "Working Tree"})
@@ -114,16 +122,19 @@ export function Editor() {
             <span
               role="button"
               tabIndex={0}
-              onClick={closeDiff}
+              onClick={(e) => {
+                e.stopPropagation();
+                closeDiff();
+              }}
               className="ml-0.5 cursor-pointer rounded p-0.5 hover:bg-accent"
             >
               <X className="size-3" />
             </span>
-          </div>
+          </button>
         )}
       </div>
       {/* Editor body */}
-      {diff ? (
+      {diff && diffActive ? (
         <DiffView />
       ) : hasOpenFile ? (
         <>

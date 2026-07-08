@@ -11,9 +11,13 @@ export interface OpenDiff {
 
 interface DiffState {
   diff: OpenDiff | null;
+  /** Whether the diff (vs. the active file) is the focused view in the editor. */
+  active: boolean;
   mode: DiffMode;
   openDiff: (path: string, side: DiffSide) => void;
   closeDiff: () => void;
+  /** Focus/unfocus the diff without closing it (switching to/from a file tab). */
+  setDiffActive: (active: boolean) => void;
   setMode: (mode: DiffMode) => void;
 }
 
@@ -30,9 +34,11 @@ function loadMode(): DiffMode {
 /** The git diff currently shown in the editor area (replaces the old modal). */
 export const useDiffStore = create<DiffState>((set) => ({
   diff: null,
+  active: false,
   mode: loadMode(),
-  openDiff: (path, side) => set({ diff: { path, side } }),
-  closeDiff: () => set({ diff: null }),
+  openDiff: (path, side) => set({ diff: { path, side }, active: true }),
+  closeDiff: () => set({ diff: null, active: false }),
+  setDiffActive: (active) => set({ active }),
   setMode: (mode) => {
     try {
       localStorage.setItem(MODE_KEY, mode);

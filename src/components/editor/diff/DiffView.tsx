@@ -80,11 +80,16 @@ export function DiffView() {
         /* ignore transient write errors */
       }
     };
+    let pending: string | null = null;
     const onEdit = EditorView.updateListener.of((vu) => {
       if (vu.docChanged) {
         if (writeTimer) clearTimeout(writeTimer);
-        const content = vu.state.doc.toString();
-        writeTimer = setTimeout(() => void persist(content), 400);
+        pending = vu.state.doc.toString();
+        writeTimer = setTimeout(() => {
+          const c = pending;
+          pending = null;
+          if (c !== null) void persist(c);
+        }, 400);
       }
     });
 
@@ -159,6 +164,7 @@ export function DiffView() {
     return () => {
       cancelled = true;
       if (writeTimer) clearTimeout(writeTimer);
+      if (pending !== null) void persist(pending); // flush unsaved edits on unmount
       view?.destroy();
       navViewRef.current = null;
       if (hostRef.current) hostRef.current.innerHTML = "";
