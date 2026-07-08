@@ -1,10 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for the OpenLeaf main window.",
-  "windows": ["main"],
+  "description": "Default capabilities for the OpenLeaf main and update windows.",
+  "windows": ["main", "update"],
   "permissions": [
     "core:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-center",
+    "core:window:allow-start-dragging",
     "shell:allow-open",
     "os:default",
     "dialog:allow-open",

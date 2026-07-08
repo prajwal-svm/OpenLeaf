@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   BookOpen,
   CircleHelp,
@@ -37,6 +39,13 @@ export function Rail() {
   const gitCount = useGitStatusStore((s) => s.count);
   const [helpOpen, setHelpOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+
+  // "About OpenLeaf" in the app menu opens our in-app About dialog.
+  useEffect(() => {
+    if (!isTauri()) return;
+    const unlisten = listen("menu://about", () => setAboutOpen(true));
+    return () => void unlisten.then((off) => off());
+  }, []);
 
   const select = (tab: RailTab) => {
     if (tab === railTab && showTree) {

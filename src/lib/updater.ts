@@ -1,8 +1,11 @@
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { isTauri } from "@tauri-apps/api/core";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { logError } from "@/lib/log";
 import { useUpdatesStore } from "@/store/updates";
+
+const UPDATE_WINDOW_LABEL = "update";
 
 /**
  * In-app auto-update. Talks to the GitHub Releases `latest.json` (configured in
@@ -10,8 +13,8 @@ import { useUpdatesStore } from "@/store/updates";
  * embedded public key, installs, and restarts.
  *
  * The prompt is fully in-app: the startup check records its result in the
- * updates store, which drives a branded in-app notice (`UpdateNotice`) rather
- * than a native OS dialog.
+ * updates store (for the About indicator) and, when an update exists, opens a
+ * dedicated frameless window (`UpdateWindow`) rather than a native OS dialog.
  *
  * The updater only exists in a bundled desktop app; in the browser dev server
  * (`isTauri()` is false) every entry point is a no-op so nothing throws.
@@ -73,9 +76,9 @@ export async function installUpdate(
  * in-app prompt (`UpdateNotice`) and the About "last check failed" indicator
  * stay in sync. Returns the `Update` when one is available, else `null`.
  *
- * Failures are logged and reflected in the store (`lastCheckFailed`). They are
- * rethrown only when `rethrow` is set, which the manual checker uses to render
- * its own inline error state.
+ * Failures are logged and reflected in the store (`lastCheckFailed`, surfaced
+ * in About). They are rethrown only when `rethrow` is set, which the manual
+ * checker uses to render its own inline error state.
  */
 export async function runUpdateCheck({ rethrow = false }: { rethrow?: boolean } = {}): Promise<Update | null> {
   if (inFlight) return null;
@@ -97,9 +100,37 @@ export async function runUpdateCheck({ rethrow = false }: { rethrow?: boolean } 
 }
 
 /**
+ * Open (or focus) the dedicated, frameless update window. It runs its own check
+ * on load. `manual` keeps it open to report "up to date" (menu-triggered); the
+ * automatic path lets the window close itself when there's nothing to install.
+ */
+export async function openUpdateWindow(opts: { manual?: boolean } = {}): Promise<void> {
+  if (!isTauri()) return;
+  const existing = await WebviewWindow.getByLabel(UPDATE_WINDOW_LABEL);
+  if (existing) {
+    await existing.setFocus();
+    return;
+  }
+  new WebviewWindow(UPDATE_WINDOW_LABEL, {
+    url: `index.html?view=update${opts.manual ? "&manual=1" : ""}`,
+    title: "OpenLeaf Update",
+    width: 440,
+    height: 460,
+    resizable: false,
+    center: true,
+    decorations: false,
+    focus: true,
+  });
+}
+
+/**
  * Fire-and-forget update check for app startup. Records the result in the
- * updates store; the in-app `UpdateNotice` surfaces an available update.
+ * updates store (for the About indicator) and, when an update exists, opens the
+ * dedicated update window.
  */
 export function checkForUpdatesOnStartup(): void {
-  void runUpdateCheck();
+  void (async () => {
+    const update = await runUpdateCheck();
+    if (update) await openUpdateWindow();
+  })();
 }

@@ -2,15 +2,14 @@ import { create } from "zustand";
 import type { Update } from "@tauri-apps/plugin-updater";
 
 /**
- * Tracks the result of the automatic (startup) update check so the UI can react
- * in-app instead of through native OS dialogs:
+ * Tracks the result of the automatic (startup) update check:
  *
- *  - `available` drives the global in-app update prompt (`UpdateNotice`).
  *  - `lastCheckFailed` / `lastCheckAt` power the "last check failed" indicator
  *    in the About panel, surfacing an otherwise-silent startup failure.
+ *  - `available` / `version` record what the last check found (the dedicated
+ *    `UpdateWindow` re-checks to get its own install handle).
  *
- * `dismissed` remembers versions the user clicked "Later" on, so we don't nag
- * again for the same version within a session.
+ * `dismissed` remembers versions the user clicked "Later" on within a session.
  */
 interface UpdatesStore {
   available: Update | null;

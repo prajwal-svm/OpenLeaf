@@ -19,7 +19,9 @@ import { useSettingsStore } from "@/store/settings";
 import { useGitStatusStore } from "@/store/git-status";
 import { useGithubStore } from "@/store/github";
 import { forwardFromCursor } from "@/features/synctex";
-import { checkForUpdatesOnStartup } from "@/lib/updater";
+import { checkForUpdatesOnStartup, openUpdateWindow } from "@/lib/updater";
+import { isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { cn } from "@/lib/utils";
 import { ArrowRight } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -118,6 +120,16 @@ export default function App() {
   useEffect(() => {
     const id = window.setTimeout(() => checkForUpdatesOnStartup(), 3000);
     return () => window.clearTimeout(id);
+  }, []);
+
+  // "Check for Updates…" in the app menu opens the update window (manual mode,
+  // so it reports "up to date" rather than closing silently).
+  useEffect(() => {
+    if (!isTauri()) return;
+    const unlisten = listen("menu://check-updates", () => {
+      void openUpdateWindow({ manual: true });
+    });
+    return () => void unlisten.then((off) => off());
   }, []);
 
   // Apply cosmetic settings (editor font size + accent color) to the document.

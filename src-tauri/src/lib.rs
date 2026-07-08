@@ -2,6 +2,7 @@ mod commands;
 mod config;
 mod git;
 mod github;
+mod menu;
 mod ollama;
 mod paths;
 mod project;
@@ -18,6 +19,8 @@ pub fn run() {
     git::scrub_remote_credentials();
 
     let mut builder = tauri::Builder::default()
+        .menu(menu::build)
+        .on_menu_event(|app, event| menu::on_event(app, event.id().as_ref()))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init());
