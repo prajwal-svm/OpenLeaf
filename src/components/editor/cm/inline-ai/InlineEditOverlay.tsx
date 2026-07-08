@@ -32,6 +32,7 @@ export function InlineEditOverlay() {
   const [providerReady, setProviderReady] = useState(true);
   const [modelLabel, setModelLabel] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Provider readiness + active model label, refreshed when AI settings change.
   useEffect(() => {
@@ -78,6 +79,14 @@ export function InlineEditOverlay() {
       st.session ? { session: { ...st.session, phase: "prompting", proposed: "" } } : st,
     );
 
+  // Close the session, doing the right thing for the current phase.
+  const dismiss = () => {
+    const phase = useInlineEditStore.getState().session?.phase;
+    if (phase === "streaming") stop();
+    else if (phase === "reviewing") reject();
+    else reset();
+  };
+
   const run = async (instructionOverride?: string) => {
     const s = useInlineEditStore.getState().session;
     if (!s) return;
@@ -105,22 +114,28 @@ export function InlineEditOverlay() {
   };
 
   // Keyboard: Esc cancels/rejects; Enter accepts while reviewing.
+  // Click outside the popover dismisses it the same way as Esc.
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-subscribes on each session change; handlers read the live store/view.
   useEffect(() => {
     if (!session) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        if (session.phase === "streaming") stop();
-        else if (session.phase === "reviewing") reject();
-        else reset();
-      } else if (e.key === "Enter" && session.phase === "reviewing") {
+        dismiss();
+      } else if (e.key === "Enter" && useInlineEditStore.getState().session?.phase === "reviewing") {
         e.preventDefault();
         accept();
       }
     };
+    const onDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) dismiss();
+    };
     window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    document.addEventListener("mousedown", onDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("mousedown", onDown, true);
+    };
   }, [session]);
 
   if (!session) return null;
@@ -143,7 +158,7 @@ export function InlineEditOverlay() {
   };
 
   return (
-    <div style={style}>
+    <div ref={containerRef} style={style}>
       {!providerReady ? (
         <div className="w-72 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
           <p className="flex items-center gap-1.5 text-sm font-medium">
@@ -170,6 +185,7 @@ export function InlineEditOverlay() {
           onInstruction={(v) => useInlineEditStore.getState().setInstruction(v)}
           onSubmit={() => void run()}
           onPreset={(instr) => void run(instr)}
+          onClose={dismiss}
           streaming={session.phase === "streaming"}
           onStop={stop}
           modelLabel={modelLabel}

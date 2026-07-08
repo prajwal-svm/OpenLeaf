@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ArrowUp, Sparkles, Square } from "lucide-react";
+import { ArrowUp, Sparkles, Square, X } from "lucide-react";
 import { PRESETS } from "@/lib/ai-inline";
 
 /**
@@ -11,6 +11,7 @@ export function PromptPopover({
   onInstruction,
   onSubmit,
   onPreset,
+  onClose,
   streaming,
   onStop,
   modelLabel,
@@ -19,6 +20,7 @@ export function PromptPopover({
   onInstruction: (v: string) => void;
   onSubmit: () => void;
   onPreset: (instruction: string) => void;
+  onClose: () => void;
   streaming: boolean;
   onStop: () => void;
   modelLabel: string;
@@ -66,6 +68,14 @@ export function PromptPopover({
             <ArrowUp className="size-3.5" />
           </button>
         )}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <X className="size-3.5" />
+        </button>
       </div>
 
       {!streaming && (
