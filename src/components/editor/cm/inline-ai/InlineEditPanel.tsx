@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { getConfig } from "@/lib/tauri";
 import {
@@ -22,17 +22,15 @@ function modelLabelFor(cfg: AIConfigLike): string {
 }
 
 /**
- * Floating UI for the inline AI edit session: prompt popover, streaming state,
- * and the Accept/Reject/Retry bar. Positioned over the editor at the selection.
- * Rendered once as a sibling of the CodeMirror host.
+ * The inline AI edit UI, rendered inside a CodeMirror block widget below the
+ * target line (Cursor/VSCode style). Reads the session from the store; the
+ * widget mounts it when a session opens and unmounts it when it closes.
  */
-export function InlineEditOverlay() {
+export function InlineEditPanel() {
   const session = useInlineEditStore((s) => s.session);
-  const [, forceTick] = useReducer((n: number) => n + 1, 0);
   const [providerReady, setProviderReady] = useState(true);
   const [modelLabel, setModelLabel] = useState("");
   const abortRef = useRef<AbortController | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   // Provider readiness + active model label, refreshed when AI settings change.
   useEffect(() => {
@@ -48,27 +46,13 @@ export function InlineEditOverlay() {
     return () => window.removeEventListener("openleaf:ai-config-changed", check);
   }, []);
 
-  // Abort any in-flight request whenever the session closes (Esc, ⌘L toggle,
-  // click-outside, or accept/reject all clear it).
+  // Abort any in-flight request when the panel unmounts (session closed).
   useEffect(() => {
-    if (!session) {
+    return () => {
       abortRef.current?.abort();
       abortRef.current = null;
-    }
-  }, [session]);
-
-  // Reposition on scroll / resize while a session is open.
-  useEffect(() => {
-    if (!session) return;
-    const view = getEditorView();
-    const onMove = () => forceTick();
-    window.addEventListener("resize", onMove);
-    view?.scrollDOM.addEventListener("scroll", onMove);
-    return () => {
-      window.removeEventListener("resize", onMove);
-      view?.scrollDOM.removeEventListener("scroll", onMove);
     };
-  }, [session]);
+  }, []);
 
   const reset = () => useInlineEditStore.getState().reset();
   const stop = () => {
@@ -87,8 +71,6 @@ export function InlineEditOverlay() {
     useInlineEditStore.setState((st) =>
       st.session ? { session: { ...st.session, phase: "prompting", proposed: "" } } : st,
     );
-
-  // Close the session, doing the right thing for the current phase.
   const dismiss = () => {
     const phase = useInlineEditStore.getState().session?.phase;
     if (phase === "streaming") stop();
@@ -122,43 +104,27 @@ export function InlineEditOverlay() {
     }
   };
 
-  // Keyboard: Esc cancels/rejects; Enter accepts while reviewing.
-  // Click outside the popover dismisses it the same way as Esc.
+  // Keyboard: Esc cancels/rejects; Enter accepts while reviewing. Capture so it
+  // wins over the editor keymap, and stop propagation so no stray newline lands.
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-subscribes on each session change; handlers read the live store/view.
   useEffect(() => {
     if (!session) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
+        e.stopPropagation();
         dismiss();
       } else if (e.key === "Enter" && useInlineEditStore.getState().session?.phase === "reviewing") {
         e.preventDefault();
+        e.stopPropagation();
         accept();
       }
     };
-    const onDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) dismiss();
-    };
     window.addEventListener("keydown", onKey, true);
-    document.addEventListener("mousedown", onDown, true);
-    return () => {
-      window.removeEventListener("keydown", onKey, true);
-      document.removeEventListener("mousedown", onDown, true);
-    };
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [session]);
 
   if (!session) return null;
-  const view = getEditorView();
-  const coords = view?.coordsAtPos(session.from);
-  if (!coords) return null;
-
-  const style: React.CSSProperties = {
-    position: "fixed",
-    top: coords.bottom + 4,
-    left: coords.left,
-    zIndex: 50,
-    maxWidth: "calc(100vw - 16px)",
-  };
 
   const openAiSettings = () => {
     reset();
@@ -167,9 +133,9 @@ export function InlineEditOverlay() {
   };
 
   return (
-    <div ref={containerRef} style={style}>
+    <div className="my-1 flex">
       {!providerReady ? (
-        <div className="w-72 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
+        <div className="w-72 rounded-lg border bg-popover p-3 text-popover-foreground shadow-md">
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <Sparkles className="size-4 text-primary" /> Set up an AI provider
           </p>

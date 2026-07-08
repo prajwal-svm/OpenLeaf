@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { FileText, X } from "lucide-react";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { EditorContextMenu } from "./EditorContextMenu";
-import { InlineEditOverlay } from "./cm/inline-ai/InlineEditOverlay";
 import { EditorToolbar } from "./EditorToolbar";
 import { PdfViewer } from "@/components/pdf/PdfViewer";
 import { wrapSelection } from "./cm/controller";
@@ -117,11 +116,10 @@ export function Editor() {
               <PdfFileView projectId={projectId} path={activePath!} />
             </div>
           ) : (
-            <div className="relative min-h-0 flex-1 overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <EditorContextMenu>
                 <CodeMirrorEditor />
               </EditorContextMenu>
-              <InlineEditOverlay />
             </div>
           )}
         </>

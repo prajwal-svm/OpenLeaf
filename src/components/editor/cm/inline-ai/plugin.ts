@@ -1,4 +1,4 @@
-import { StateEffect, StateField, type Extension } from "@codemirror/state";
+import { StateEffect, StateField, type EditorState, type Extension } from "@codemirror/state";
 import {
   Decoration,
   type DecorationSet,
@@ -8,6 +8,7 @@ import {
 } from "@codemirror/view";
 import { useInlineEditStore } from "@/store/inlineEdit";
 import { buildDecoSpans } from "./diff-ranges";
+import { promptWidget } from "./promptWidget";
 
 /** Widget rendering an inserted (green) preview span. */
 class AddWidget extends WidgetType {
@@ -42,23 +43,32 @@ const inlineDecoField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
-/** Build the decoration set for the current session against the given doc length. */
-function buildSet(docLength: number): DecorationSet {
+/** Build the decoration set for the current session: the diff preview (when
+ * streaming/reviewing) plus the prompt panel block widget below the line. */
+function buildSet(state: EditorState): DecorationSet {
   const s = useInlineEditStore.getState().session;
-  if (!s || (s.phase !== "streaming" && s.phase !== "reviewing") || !s.proposed) {
-    return Decoration.none;
-  }
+  if (!s) return Decoration.none;
+  const docLength = state.doc.length;
   const ranges = [];
-  for (const sp of buildDecoSpans(s.original, s.proposed, s.from)) {
-    if (sp.from > docLength || sp.to > docLength) continue; // out of bounds guard
-    if (sp.kind === "del" && sp.to > sp.from) {
-      ranges.push(Decoration.mark({ class: "cm-inline-del" }).range(sp.from, sp.to));
-    } else if (sp.kind === "add") {
-      ranges.push(
-        Decoration.widget({ widget: new AddWidget(sp.text ?? ""), side: 1 }).range(sp.from),
-      );
+
+  // Inline red/green diff, once there is proposed text to show.
+  if ((s.phase === "streaming" || s.phase === "reviewing") && s.proposed) {
+    for (const sp of buildDecoSpans(s.original, s.proposed, s.from)) {
+      if (sp.from > docLength || sp.to > docLength) continue; // out of bounds guard
+      if (sp.kind === "del" && sp.to > sp.from) {
+        ranges.push(Decoration.mark({ class: "cm-inline-del" }).range(sp.from, sp.to));
+      } else if (sp.kind === "add") {
+        ranges.push(
+          Decoration.widget({ widget: new AddWidget(sp.text ?? ""), side: 1 }).range(sp.from),
+        );
+      }
     }
   }
+
+  // The prompt panel, as a block widget below the target line.
+  const line = state.doc.lineAt(Math.min(s.to, docLength));
+  ranges.push(Decoration.widget({ widget: promptWidget, block: true, side: 1 }).range(line.to));
+
   return Decoration.set(ranges, true);
 }
 
@@ -70,7 +80,7 @@ const inlineDiffSubscriber = ViewPlugin.fromClass(
       this.unsub = useInlineEditStore.subscribe(() => this.repaint());
     }
     private repaint() {
-      this.view.dispatch({ effects: setInlineDeco.of(buildSet(this.view.state.doc.length)) });
+      this.view.dispatch({ effects: setInlineDeco.of(buildSet(this.view.state)) });
     }
     destroy() {
       this.unsub();
