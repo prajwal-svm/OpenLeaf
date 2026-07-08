@@ -4,6 +4,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-shell";
 import { AlertTriangle, ArrowUpCircle, CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Markdown } from "@/components/ui/markdown";
 import { findUpdate, installUpdate } from "@/lib/updater";
 import { logError } from "@/lib/log";
 import { cn } from "@/lib/utils";
@@ -110,9 +111,9 @@ export function UpdateChecker({ className }: { className?: string }) {
             Update available · v{state.update.version}
           </div>
           {state.update.body?.trim() && (
-            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-background/60 p-2 text-xs text-muted-foreground">
+            <Markdown className="mt-2 max-h-48 overflow-auto rounded bg-background/60 p-2.5 text-xs text-muted-foreground [scrollbar-width:thin]">
               {state.update.body.trim()}
-            </pre>
+            </Markdown>
           )}
           <div className="mt-3 flex items-center gap-2">
             <Button size="sm" onClick={() => install(state.update)}>
