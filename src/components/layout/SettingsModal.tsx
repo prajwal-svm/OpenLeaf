@@ -354,7 +354,7 @@ export function SettingsModal() {
                   <Keyboard className="size-4 shrink-0" />
                   <span className="flex-1">
                     Shortcuts: <kbd>⌘K</kbd> command palette · <kbd>⌘↵</kbd> recompile ·{" "}
-                    <kbd>⌘B</kbd>/<kbd>⌘I</kbd> bold/italic — see all
+                    <kbd>⌘B</kbd>/<kbd>⌘I</kbd> bold/italic · see all
                   </span>
                   <ChevronRight className="size-4 shrink-0" />
                 </button>
@@ -1108,6 +1108,7 @@ const DEFAULT_CFG: AppConfig = {
   ai_provider: "openai",
   ai_model: "gpt-4o-mini",
   ai_keys: {},
+  ai_system_prompt: "",
 };
 
 function AISection() {
@@ -1119,6 +1120,12 @@ function AISection() {
   const [saving, setSaving] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [toolsOpen, setToolsOpen] = useState(true);
+  // Draft of the user's custom system-prompt addition (saved explicitly).
+  const [sysPrompt, setSysPrompt] = useState("");
+  const [sysPromptSaved, setSysPromptSaved] = useState(false);
+  // Explicit expand/collapse per provider card. Unset falls back to "open if
+  // active", so the provider in use is expanded and the rest are tucked away.
+  const [openProviders, setOpenProviders] = useState<Record<string, boolean>>({});
   // Live Ollama detection: which models are actually installed locally.
   const [ollama, setOllama] = useState<{
     status: "idle" | "loading" | "ok" | "down";
@@ -1135,6 +1142,7 @@ function AISection() {
       }
       const next: AppConfig = { ...DEFAULT_CFG, ...c, ai_keys: merged };
       setCfg(next);
+      setSysPrompt(next.ai_system_prompt || "");
       setKeys(merged);
       setSavedKeys(merged);
       if (Object.keys(c.ai_keys ?? {}).length === 0 && c.ai_api_key) {
@@ -1244,6 +1252,16 @@ function AISection() {
     }
   };
 
+  const saveSystemPrompt = async () => {
+    try {
+      await persist({ ...cfg, ai_system_prompt: sysPrompt });
+      setSysPromptSaved(true);
+      setTimeout(() => setSysPromptSaved(false), 1500);
+    } catch (e) {
+      setMsg({ ok: false, text: String(e) });
+    }
+  };
+
   const deleteKey = async (id: string) => {
     setSaving(id);
     setMsg(null);
@@ -1313,7 +1331,7 @@ function AISection() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Connect any providers you use below — keys are stored locally only. Saving one sets it as the
+        Connect any providers you use below. Keys are stored locally only. Saving one sets it as the
         default; switch between configured providers and models anytime from the dropdown in the chat
         panel.
       </p>
@@ -1326,27 +1344,42 @@ function AISection() {
           const dirty = value.trim().length > 0 && value !== saved;
           const isActive = activeProvider === p.id;
           const hasSaved = saved.length > 0;
+          const isOpen = openProviders[p.id] ?? isActive;
           return (
             <div
               key={p.id}
               className={cn(
-                "rounded-lg border bg-background p-3 transition-colors",
+                "rounded-lg border bg-background transition-colors",
                 isActive && "border-primary/40 ring-1 ring-primary/20"
               )}
             >
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-start gap-2 p-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenProviders((m) => ({ ...m, [p.id]: !isOpen }))}
+                  aria-expanded={isOpen}
+                  className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                >
+                  {isOpen ? (
+                    <ChevronDown className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  )}
+                  <div className="min-w-0 flex-1">
                     <span className="font-medium">{p.name}</span>
-                    {isActive && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                        <Check className="size-3" /> Active
-                      </span>
-                    )}
+                    {isOpen && <p className="mt-0.5 text-xs text-muted-foreground">{p.blurb}</p>}
                   </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{p.blurb}</p>
-                </div>
-                {p.signupUrl && (
+                </button>
+                {isActive ? (
+                  <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                    <Check className="size-3" /> Active
+                  </span>
+                ) : hasSaved ? (
+                  <span className="mt-0.5 inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    Connected
+                  </span>
+                ) : null}
+                {p.signupUrl && isOpen && (
                   <button
                     onClick={() => void open(p.signupUrl!)}
                     className="flex shrink-0 items-center gap-1 text-[11px] text-primary hover:underline dark:text-primary"
@@ -1356,20 +1389,22 @@ function AISection() {
                 )}
               </div>
 
-              {p.id === "ollama" ? (
-                <OllamaSetup
-                  active={isActive}
-                  host={value}
-                  onHostChange={(v) => setKeys((k) => ({ ...k, ollama: v }))}
-                  status={ollama.status}
-                  models={ollama.models}
-                  onDetect={() => void refreshOllama(value || DEFAULT_OLLAMA_HOST)}
-                  selectedModel={cfg.ai_model || ""}
-                  onUse={(m) => void applyOllamaModel(m)}
-                  onDisconnect={hasSaved ? () => void deleteKey("ollama") : undefined}
-                />
+              {!isOpen ? null : p.id === "ollama" ? (
+                <div className="px-3 pb-3">
+                  <OllamaSetup
+                    active={isActive}
+                    host={value}
+                    onHostChange={(v) => setKeys((k) => ({ ...k, ollama: v }))}
+                    status={ollama.status}
+                    models={ollama.models}
+                    onDetect={() => void refreshOllama(value || DEFAULT_OLLAMA_HOST)}
+                    selectedModel={cfg.ai_model || ""}
+                    onUse={(m) => void applyOllamaModel(m)}
+                    onDisconnect={hasSaved ? () => void deleteKey("ollama") : undefined}
+                  />
+                </div>
               ) : (
-                <>
+                <div className="px-3 pb-3">
                   {isActive && (
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-[11px] text-muted-foreground">Model</span>
@@ -1431,11 +1466,40 @@ function AISection() {
                       </button>
                     )}
                   </div>
-                </>
+                </div>
               )}
             </div>
           );
         })}
+      </div>
+
+      <div className="space-y-2 border-t pt-4">
+        <p className="font-medium">Custom instructions</p>
+        <p className="text-xs text-muted-foreground">
+          Added to every AI request as your personal style and preferences. The
+          assistant follows these on top of its built-in behavior. They can't
+          override its tools or safety rules.
+        </p>
+        <textarea
+          value={sysPrompt}
+          onChange={(e) => setSysPrompt(e.target.value)}
+          rows={5}
+          placeholder="e.g. Always write in British English. Keep explanations short. Prefer the enumitem package for lists."
+          className="w-full resize-y rounded-md border bg-background px-2.5 py-2 text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void saveSystemPrompt()}
+            disabled={sysPrompt === (cfg.ai_system_prompt || "")}
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-40"
+          >
+            Save instructions
+          </button>
+          {sysPromptSaved && (
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">Saved</span>
+          )}
+        </div>
       </div>
 
       {msg && (

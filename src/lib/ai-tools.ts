@@ -38,6 +38,12 @@ export interface ToolApprovalRequest {
   summary: string;
   /** The primary path affected, when there is one. */
   path?: string;
+  /**
+   * Before/after content for a red/green preview, present when the change
+   * rewrites a file's contents (write_file / replace_in_file). `oldText` is the
+   * current file (empty for a new file); `newText` is what would be written.
+   */
+  diff?: { path: string; oldText: string; newText: string };
 }
 
 /**
@@ -95,8 +101,16 @@ export function createOpenLeafTools(opts?: { confirm?: ConfirmFn }) {
         const { path, content } = input as { path: string; content: string };
         const id = pid();
         if (!id) return { error: "No project open" };
-        if (confirm && !(await confirm({ tool: "write_file", summary: `Write ${path}`, path }))) {
-          return declined("write_file");
+        if (confirm) {
+          const oldText = await readFileContent(id, path).catch(() => "");
+          if (!(await confirm({
+            tool: "write_file",
+            summary: `Write ${path}`,
+            path,
+            diff: { path, oldText, newText: content },
+          }))) {
+            return declined("write_file");
+          }
         }
         try {
           await writeFileContent(id, path, content);
@@ -128,9 +142,6 @@ export function createOpenLeafTools(opts?: { confirm?: ConfirmFn }) {
         };
         const id = pid();
         if (!id) return { error: "No project open" };
-        if (confirm && !(await confirm({ tool: "replace_in_file", summary: `Edit ${path}`, path }))) {
-          return declined("replace_in_file");
-        }
         try {
           const original = await readFileContent(id, path);
           if (!original.includes(find)) {
@@ -140,6 +151,16 @@ export function createOpenLeafTools(opts?: { confirm?: ConfirmFn }) {
           const updated = replace_all
             ? original.split(find).join(replace)
             : original.replace(find, replace);
+          // Ask for approval with a concrete before/after diff (nothing has been
+          // written yet; declining leaves the file untouched).
+          if (confirm && !(await confirm({
+            tool: "replace_in_file",
+            summary: `Edit ${path}`,
+            path,
+            diff: { path, oldText: original, newText: updated },
+          }))) {
+            return declined("replace_in_file");
+          }
           await writeFileContent(id, path, updated);
           store().applyExternalWrite(path, updated);
           return { success: true, path, replacements: count };
@@ -164,6 +185,10 @@ export function createOpenLeafTools(opts?: { confirm?: ConfirmFn }) {
         const { path, is_dir } = input as { path: string; is_dir?: boolean };
         const id = pid();
         if (!id) return { error: "No project open" };
+        const summary = is_dir ? `Create folder ${path}` : `Create file ${path}`;
+        if (confirm && !(await confirm({ tool: "create_file", summary, path }))) {
+          return declined("create_file");
+        }
         try {
           await apiCreateFile(id, path, is_dir ?? false);
           await store().refreshTree();

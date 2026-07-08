@@ -22,7 +22,7 @@ import { AboutModal } from "@/components/layout/AboutModal";
 import { cn } from "@/lib/utils";
 
 const TOP_TABS: { id: RailTab; label: string; icon: typeof FileText }[] = [
-  { id: "files", label: "File tree", icon: FileText },
+  { id: "files", label: "Source Tree", icon: FileText },
   { id: "search", label: "Project search", icon: Search },
   { id: "source", label: "Source control", icon: GitBranch },
 ];

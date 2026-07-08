@@ -1,5 +1,6 @@
 import { ShieldAlert, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { InlineDiffPreview } from "@/components/editor/diff/InlineDiffPreview";
 import type { ToolApprovalRequest } from "@/lib/ai-tools";
 
 /**
@@ -28,12 +29,22 @@ export function ToolConfirm({
         <div className="min-w-0 flex-1">
           <p className="font-medium text-foreground">The assistant wants to change your files</p>
           <p className="mt-0.5 break-words text-muted-foreground">
-            <code className="rounded bg-muted px-1 py-0.5 font-mono">{req.tool}</code>
-            {" — "}
+            <code className="rounded bg-muted px-1 py-0.5 font-mono">{req.tool}</code>{" "}
             {req.summary}
           </p>
         </div>
       </div>
+      {req.diff && (
+        <div className="mt-2 overflow-hidden rounded-md border bg-background">
+          <div className="max-h-72 overflow-auto text-[12px]">
+            <InlineDiffPreview
+              path={req.diff.path}
+              oldText={req.diff.oldText}
+              newText={req.diff.newText}
+            />
+          </div>
+        </div>
+      )}
       <div className="mt-2.5 flex justify-end gap-2">
         <Button variant="secondary" size="sm" onClick={onReject}>
           <X className="size-3.5" /> Reject

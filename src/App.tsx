@@ -160,6 +160,9 @@ export default function App() {
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.key === "Enter") {
         e.preventDefault();
+        // Reveal the PDF pane if it's hidden, so a keyboard recompile shows output.
+        const s = useSettingsStore.getState();
+        if (s.viewMode === "editor") s.setViewMode("split");
         void recompile();
       } else if (e.shiftKey && e.key.toLowerCase() === "j") {
         e.preventDefault();

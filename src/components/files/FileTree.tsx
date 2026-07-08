@@ -126,7 +126,7 @@ export function FileTree() {
         <div className="flex items-center gap-1.5">
           <FolderTree className="size-3.5 text-muted-foreground" />
           <span className="text-xs font-medium uppercase tracking-wide text-sidebar-foreground/70">
-            Files
+            Source Tree
           </span>
         </div>
         <div className="flex items-center gap-0.5">

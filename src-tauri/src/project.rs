@@ -313,8 +313,30 @@ pub fn set_main_doc(project_id: String, main_doc: String) -> Result<ProjectMeta,
 }
 
 #[tauri::command]
+pub fn rename_project(project_id: String, name: String) -> Result<ProjectMeta, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("Project name cannot be empty".into());
+    }
+    let mut meta = read_meta(&project_id)?;
+    meta.name = trimmed.to_string();
+    write_meta(&project_id, &meta)?;
+    Ok(meta)
+}
+
+#[tauri::command]
 pub fn get_project(project_id: String) -> Result<ProjectMeta, String> {
     read_meta(&project_id)
+}
+
+/// Open the webview devtools. Only does anything in debug builds (`tauri dev`),
+/// where devtools are compiled in; a no-op in release.
+#[tauri::command]
+pub fn open_devtools(window: tauri::WebviewWindow) {
+    #[cfg(debug_assertions)]
+    window.open_devtools();
+    #[cfg(not(debug_assertions))]
+    let _ = window;
 }
 
 #[tauri::command]

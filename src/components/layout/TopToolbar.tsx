@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Check,
   CircleHelp,
   Columns2,
   ChevronRight,
@@ -49,7 +50,7 @@ const FMT_LABEL: Record<string, string> = {
 };
 
 const VIEW_OPTIONS: { mode: ViewMode; label: string; icon: typeof Columns2 }[] = [
-  { mode: "editor", label: "Editor View", icon: SquarePen },
+  { mode: "editor", label: "Source View", icon: SquarePen },
   { mode: "split", label: "Split View", icon: Columns2 },
   { mode: "pdf", label: "PDF View", icon: FileText },
 ];
@@ -60,6 +61,7 @@ export function TopToolbar() {
   const closeProject = useFilesStore((s) => s.closeProject);
   const refreshProjects = useFilesStore((s) => s.refreshProjects);
   const openProject = useFilesStore((s) => s.openProject);
+  const renameProject = useFilesStore((s) => s.renameProject);
   const pdfBytes = useCompileStore((s) => s.pdfBytes);
   const setHistoryOpen = useSettingsStore((s) => s.setHistoryOpen);
   const setHotkeysOpen = useSettingsStore((s) => s.setHotkeysOpen);
@@ -73,6 +75,37 @@ export function TopToolbar() {
   const [forkOpen, setForkOpen] = useState(false);
   const [forkName, setForkName] = useState("");
   const [forkBusy, setForkBusy] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const titleEditRef = useRef<HTMLSpanElement>(null);
+
+  // Clicking anywhere outside the title editor cancels the edit (like Escape).
+  useEffect(() => {
+    if (!editingTitle) return;
+    const onDown = (e: MouseEvent) => {
+      if (titleEditRef.current && !titleEditRef.current.contains(e.target as Node)) {
+        setEditingTitle(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [editingTitle]);
+
+  const startEditTitle = () => {
+    setTitleDraft(projectName || "");
+    setEditingTitle(true);
+  };
+  const commitTitle = async () => {
+    const name = titleDraft.trim();
+    setEditingTitle(false);
+    if (!name || name === projectName) return;
+    try {
+      await renameProject(name);
+      toast.success("Project renamed");
+    } catch (e) {
+      notifyError("rename project", e);
+    }
+  };
   const [dlOpen, setDlOpen] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
   const [githubUrl, setGithubUrl] = useState<string | null>(null);
@@ -201,9 +234,53 @@ export function TopToolbar() {
           OpenLeaf
         </button>
         <ChevronRight className="size-4 text-muted-foreground/50" />
-        <span className="truncate max-w-[200px] text-sm text-muted-foreground">
-          {projectName || "project"}
-        </span>
+        {editingTitle ? (
+          <span ref={titleEditRef} className="flex items-center gap-1">
+            <input
+              autoFocus
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void commitTitle();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  setEditingTitle(false);
+                }
+              }}
+              className="h-6 w-[180px] rounded border bg-background px-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+            />
+            <Tooltip label="Save (Enter)">
+              <button
+                type="button"
+                onClick={() => void commitTitle()}
+                aria-label="Save name"
+                className="flex size-6 items-center justify-center rounded text-emerald-600 hover:bg-accent dark:text-emerald-400"
+              >
+                <Check className="size-3.5" />
+              </button>
+            </Tooltip>
+            <Tooltip label="Cancel (Esc)">
+              <button
+                type="button"
+                onClick={() => setEditingTitle(false)}
+                aria-label="Cancel"
+                className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            </Tooltip>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={startEditTitle}
+            className="flex min-w-0 items-center rounded px-1 py-0.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <span className="max-w-[200px] truncate">{projectName || "project"}</span>
+          </button>
+        )}
       </div>
 
       {/* Center: view-mode segmented control */}
@@ -236,7 +313,11 @@ export function TopToolbar() {
             size="icon"
             className="size-7 rounded-md bg-primary text-white shadow-sm hover:bg-primary"
             disabled={compiling}
-            onClick={() => void recompile()}
+            onClick={() => {
+              // If the PDF pane is hidden (editor-only), reveal it so the result shows.
+              if (viewMode === "editor") setViewMode("split");
+              void recompile();
+            }}
             aria-label="Recompile"
           >
             {compiling ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}

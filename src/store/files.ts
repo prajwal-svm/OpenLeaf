@@ -11,6 +11,7 @@ import {
   listProjects,
   readFileContent,
   renameFile as apiRenameFile,
+  renameProjectCmd,
   setMainDocCmd,
   writeFileContent,
   type FileEntry,
@@ -40,6 +41,7 @@ interface FilesStore {
   openProject: (id: string) => Promise<void>;
   closeProject: () => void;
   createProject: (name: string) => Promise<void>;
+  renameProject: (name: string) => Promise<void>;
   createFromTemplate: (name: string, templateId: string) => Promise<string>;
   restoreFromGit: (oid: string) => Promise<void>;
 
@@ -118,6 +120,14 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
     const id = await apiCreateProject(name);
     await get().refreshProjects();
     await get().openProject(id);
+  },
+
+  renameProject: async (name) => {
+    const { projectId } = get();
+    if (!projectId) return;
+    const meta = await renameProjectCmd(projectId, name);
+    set({ projectName: meta.name });
+    await get().refreshProjects();
   },
 
   createFromTemplate: async (name, templateId) => {

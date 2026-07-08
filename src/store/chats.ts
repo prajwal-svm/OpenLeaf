@@ -4,6 +4,9 @@ export interface ToolEntry {
   name: string;
   status: "running" | "done" | "error";
   output?: string;
+  /** For gated edits: whether the user approved or rejected the change. Left a
+   *  persistent trace in the chat after the approval prompt is dismissed. */
+  approval?: "approved" | "rejected";
 }
 
 /** Lightweight metadata for a file/image the user attached to a message. Only

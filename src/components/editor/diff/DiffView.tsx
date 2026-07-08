@@ -104,7 +104,7 @@ export function DiffView() {
 
         // Guard against content the merge view can't sensibly render.
         if (isBinaryPath(path) || hasNullByte(oldText) || hasNullByte(newText)) {
-          setNotice("Binary file — diff not shown.");
+          setNotice("Binary file, diff not shown.");
           setLoading(false);
           return;
         }

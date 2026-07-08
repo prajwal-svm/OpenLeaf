@@ -197,7 +197,7 @@ export function PreviewPane() {
             <FileText className="size-10 opacity-30" />
             {status === "error" ? (
               <p className="max-w-xs text-sm">
-                Compile failed — open the <strong>Logs</strong> tab to see what went wrong.
+                Compile failed. Open the <strong>Logs</strong> tab to see what went wrong.
               </p>
             ) : compiling ? (
               <p className="text-sm">Compiling your document…</p>

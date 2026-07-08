@@ -49,7 +49,7 @@ export async function reportCrashToGithub(errorTitle?: string): Promise<void> {
   }
   let body = sections.join("\n\n");
   if (body.length > MAX_BODY) {
-    body = `${body.slice(0, MAX_BODY)}\n…(truncated — attach ~/.openleaf/app.log for the full log)`;
+    body = `${body.slice(0, MAX_BODY)}\n…(truncated, attach ~/.openleaf/app.log for the full log)`;
   }
   const url = `${NEW_ISSUE_URL}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}&labels=crash`;
   try {

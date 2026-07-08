@@ -32,6 +32,9 @@ pub struct AppConfig {
     /// Per-provider credentials: provider id -> API key (or host URL for Ollama).
     #[serde(default)]
     pub ai_keys: HashMap<String, String>,
+    /// User-authored extra instructions, sandboxed into the AI system prompt.
+    #[serde(default)]
+    pub ai_system_prompt: String,
 }
 
 pub fn config_path() -> Result<PathBuf, String> {

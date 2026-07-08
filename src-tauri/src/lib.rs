@@ -61,6 +61,8 @@ pub fn run() {
             project::has_pandoc,
             project::download_pandoc,
             project::set_main_doc,
+            project::rename_project,
+            project::open_devtools,
             project::get_project,
             project::list_projects,
             project::create_project,

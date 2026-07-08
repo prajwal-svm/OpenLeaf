@@ -88,6 +88,12 @@ export const readAppLog = (maxBytes: number) =>
 export const setMainDocCmd = (projectId: string, mainDoc: string) =>
   invoke<ProjectMeta>("set_main_doc", { projectId, mainDoc });
 
+export const renameProjectCmd = (projectId: string, name: string) =>
+  invoke<ProjectMeta>("rename_project", { projectId, name });
+
+/** Open the webview devtools (dev builds only; a no-op in release). */
+export const openDevtools = () => invoke<void>("open_devtools");
+
 export const getProject = (projectId: string) =>
   invoke<ProjectMeta>("get_project", { projectId });
 
@@ -166,6 +172,8 @@ export interface AppConfig {
   ai_model: string;
   /** provider id -> API key (or host URL for Ollama). */
   ai_keys: Record<string, string>;
+  /** User-authored extra instructions, sandboxed into the AI system prompt. */
+  ai_system_prompt: string;
 }
 
 export const getConfig = () => invoke<AppConfig>("get_config");

@@ -57,11 +57,69 @@ describe("ai-tools: destructive edits require approval (U1)", () => {
   });
 
   it("write_file is gated the same way", async () => {
+    mocks.api.readFileContent.mockResolvedValue("");
     const confirm = vi.fn().mockResolvedValue(false);
     const tools = createOpenLeafTools({ confirm });
     const res = await tools.write_file.execute({ path: "a.tex", content: "x" });
     expect(mocks.api.writeFileContent).not.toHaveBeenCalled();
     expect(res).toMatchObject({ declined: true });
+  });
+
+  it("write_file's approval request carries a before/after diff", async () => {
+    mocks.api.readFileContent.mockResolvedValue("old body");
+    const confirm = vi.fn().mockResolvedValue(false);
+    const tools = createOpenLeafTools({ confirm });
+    await tools.write_file.execute({ path: "a.tex", content: "new body" });
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tool: "write_file",
+        diff: { path: "a.tex", oldText: "old body", newText: "new body" },
+      }),
+    );
+  });
+
+  it("write_file on a new file shows an empty old side (all additions)", async () => {
+    mocks.api.readFileContent.mockRejectedValue(new Error("no such file"));
+    const confirm = vi.fn().mockResolvedValue(false);
+    const tools = createOpenLeafTools({ confirm });
+    await tools.write_file.execute({ path: "new.tex", content: "hello" });
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        diff: { path: "new.tex", oldText: "", newText: "hello" },
+      }),
+    );
+  });
+
+  it("replace_in_file's approval request carries the applied diff", async () => {
+    mocks.api.readFileContent.mockResolvedValue("alpha beta gamma");
+    const confirm = vi.fn().mockResolvedValue(false);
+    const tools = createOpenLeafTools({ confirm });
+    await tools.replace_in_file.execute({ path: "a.tex", find: "beta", replace: "BETA" });
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tool: "replace_in_file",
+        diff: { path: "a.tex", oldText: "alpha beta gamma", newText: "alpha BETA gamma" },
+      }),
+    );
+  });
+
+  it("replace_in_file errors before asking for approval when find is absent", async () => {
+    mocks.api.readFileContent.mockResolvedValue("no match here");
+    const confirm = vi.fn().mockResolvedValue(true);
+    const tools = createOpenLeafTools({ confirm });
+    const res = await tools.replace_in_file.execute({ path: "a.tex", find: "zzz", replace: "y" });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(mocks.api.writeFileContent).not.toHaveBeenCalled();
+    expect(res).toMatchObject({ error: expect.stringContaining("not found") });
+  });
+
+  it("create_file is gated and declines without touching disk when refused", async () => {
+    const confirm = vi.fn().mockResolvedValue(false);
+    const tools = createOpenLeafTools({ confirm });
+    const res = await tools.create_file.execute({ path: "notes.tex" });
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(mocks.api.createFile).not.toHaveBeenCalled();
+    expect(res).toMatchObject({ declined: true, tool: "create_file" });
   });
 
   it("read_file is non-destructive and never asks for approval", async () => {
