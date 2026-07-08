@@ -15,7 +15,8 @@
     "lint": "biome lint src",
     "lint:fix": "biome lint --write src",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.7",

@@ -1,0 +1,46 @@
+#!/usr/bin/env sh
+#
+# Pre-commit hook: run the same gates CI does, so a red build is caught here
+# instead of after a push. Mirrors .github/workflows/ci.yml exactly:
+#
+#   Frontend: pnpm lint  |  pnpm build (tsc -b + vite build)  |  pnpm test
+#   Rust:     cargo fmt --check  |  cargo clippy -D warnings  |  cargo test --lib
+#
+# Only the areas you touched run, so a frontend-only commit skips the Rust
+# gate and vice-versa. Skip everything with:  git commit --no-verify
+#
+set -e
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# Files staged for this commit (added/copied/modified/renamed).
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+[ -z "$staged" ] && exit 0
+
+fail() {
+  printf '\n\033[31m✗ pre-commit: %s failed.\033[0m Fix it, or bypass with: git commit --no-verify\n' "$1" >&2
+  exit 1
+}
+
+# Frontend gate: any app source or frontend config file.
+if printf '%s\n' "$staged" | grep -qE '^(src/|package\.json|pnpm-lock\.yaml|tsconfig|vite\.config|biome\.json|index\.html)'; then
+  echo "→ frontend: lint"
+  pnpm lint || fail "biome lint"
+  echo "→ frontend: typecheck + build"
+  pnpm build || fail "tsc / vite build"
+  echo "→ frontend: tests"
+  pnpm test || fail "vitest"
+fi
+
+# Rust gate: anything under the Tauri crate.
+if printf '%s\n' "$staged" | grep -qE '^src-tauri/'; then
+  echo "→ rust: fmt check"
+  cargo fmt --manifest-path src-tauri/Cargo.toml --check || fail "cargo fmt"
+  echo "→ rust: clippy"
+  cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings || fail "cargo clippy"
+  echo "→ rust: tests"
+  cargo test --manifest-path src-tauri/Cargo.toml --lib || fail "cargo test"
+fi
+
+printf '\033[32m✓ pre-commit checks passed\033[0m\n'
