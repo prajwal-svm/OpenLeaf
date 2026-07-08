@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Globe, Github, X, RefreshCw } from "lucide-react";
+import { ExternalLink, Globe, Github, X } from "lucide-react";
 import { open } from "@tauri-apps/plugin-shell";
 import { Button } from "@/components/ui/button";
 import { LeafLogo } from "@/components/layout/LeafLogo";
+import { UpdateChecker } from "@/components/layout/UpdateChecker";
 import { appVersion } from "@/lib/tauri";
-import { checkForUpdates } from "@/lib/updater";
-import { cn } from "@/lib/utils";
 
 const REPO = "https://github.com/prajwal-svm/OpenLeaf";
 const AUTHOR_URL = "http://prajwal.me";
@@ -13,22 +12,12 @@ const DOCS = "https://www.overleaf.com/learn";
 
 export function AboutModal({ open: isOpen, onClose }: { open: boolean; onClose: () => void }) {
   const [version, setVersion] = useState("");
-  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     if (isOpen) void appVersion().then(setVersion).catch(() => setVersion(""));
   }, [isOpen]);
 
   if (!isOpen) return null;
-
-  const onCheckUpdates = async () => {
-    setChecking(true);
-    try {
-      await checkForUpdates({ silent: false });
-    } finally {
-      setChecking(false);
-    }
-  };
 
   const ext = (url: string) => () => void open(url);
 
@@ -58,14 +47,7 @@ export function AboutModal({ open: isOpen, onClose }: { open: boolean; onClose: 
           <p className="mt-2 text-xs text-muted-foreground">
             A local-first, cross-platform LaTeX &amp; resume authoring app.
           </p>
-          <button
-            onClick={onCheckUpdates}
-            disabled={checking}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-60"
-          >
-            <RefreshCw className={cn("size-3.5", checking && "animate-spin")} />
-            {checking ? "Checking…" : "Check for updates"}
-          </button>
+          <UpdateChecker className="mt-3 flex flex-col items-center" />
         </div>
 
         <div className="mt-5 space-y-1 border-t pt-4">

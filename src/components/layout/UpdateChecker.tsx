@@ -1,0 +1,174 @@
+import { useState } from "react";
+import type { Update } from "@tauri-apps/plugin-updater";
+import { isTauri } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-shell";
+import { AlertTriangle, ArrowUpCircle, CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { findUpdate, installUpdate } from "@/lib/updater";
+import { logError } from "@/lib/log";
+import { cn } from "@/lib/utils";
+
+const RELEASES_URL = "https://github.com/prajwal-svm/OpenLeaf/releases";
+
+/**
+ * Inline update checker used in the Help & About surfaces. Renders every state
+ * of a manual update check (checking / up to date / available / downloading /
+ * error) directly in the panel instead of through native OS dialogs.
+ *
+ * In the browser dev server (`!isTauri()`) there is no updater, so it shows an
+ * "unsupported" note rather than falsely claiming the app is up to date.
+ */
+type State =
+  | { kind: "idle" }
+  | { kind: "checking" }
+  | { kind: "upToDate" }
+  | { kind: "available"; update: Update }
+  | { kind: "downloading"; percent: number }
+  | { kind: "error" };
+
+export function UpdateChecker({ className }: { className?: string }) {
+  // Snapshot once: in the browser dev server there is no updater at all, so we
+  // render an "unsupported" note instead of a misleading "up to date".
+  const [supported] = useState(isTauri);
+  const [state, setState] = useState<State>({ kind: "idle" });
+
+  const releaseNotes = () => void open(RELEASES_URL);
+
+  const check = async () => {
+    setState({ kind: "checking" });
+    try {
+      const update = await findUpdate();
+      setState(update ? { kind: "available", update } : { kind: "upToDate" });
+    } catch (e) {
+      await logError("updater", e);
+      setState({ kind: "error" });
+    }
+  };
+
+  const install = async (update: Update) => {
+    setState({ kind: "downloading", percent: 0 });
+    try {
+      await installUpdate(update, (percent) => setState({ kind: "downloading", percent }));
+      // installUpdate relaunches on success; this line is unreachable in the app.
+    } catch (e) {
+      await logError("updater", e);
+      setState({ kind: "error" });
+    }
+  };
+
+  if (!supported) {
+    return (
+      <p className={cn("text-xs text-muted-foreground", className)}>
+        Updates are managed by the desktop app.
+      </p>
+    );
+  }
+
+  return (
+    <div className={cn("space-y-2", className)}>
+      {(state.kind === "idle" || state.kind === "checking") && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={check}
+          disabled={state.kind === "checking"}
+        >
+          <RefreshCw className={cn("size-3.5", state.kind === "checking" && "animate-spin")} />
+          {state.kind === "checking" ? "Checking…" : "Check for updates"}
+        </Button>
+      )}
+
+      {state.kind === "upToDate" && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="size-4" />
+            You're on the latest version
+          </span>
+          <button
+            type="button"
+            onClick={releaseNotes}
+            className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+          >
+            Release notes
+            <ExternalLink className="size-3" />
+          </button>
+          <button
+            type="button"
+            onClick={check}
+            className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+          >
+            <RefreshCw className="size-3" />
+            Check again
+          </button>
+        </div>
+      )}
+
+      {state.kind === "available" && (
+        <div className="rounded-md border bg-muted/30 p-3">
+          <div className="flex items-center gap-1.5 text-sm font-medium">
+            <ArrowUpCircle className="size-4 text-primary" />
+            Update available · v{state.update.version}
+          </div>
+          {state.update.body?.trim() && (
+            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-background/60 p-2 text-xs text-muted-foreground">
+              {state.update.body.trim()}
+            </pre>
+          )}
+          <div className="mt-3 flex items-center gap-2">
+            <Button size="sm" onClick={() => install(state.update)}>
+              Update now
+            </Button>
+            <button
+              type="button"
+              onClick={releaseNotes}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Release notes
+              <ExternalLink className="size-3" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {state.kind === "downloading" && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">
+            {state.percent >= 100 ? "Installing…" : `Downloading… ${state.percent}%`}
+          </p>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-200"
+              style={{ width: `${state.percent}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            OpenLeaf will restart to finish.
+          </p>
+        </div>
+      )}
+
+      {state.kind === "error" && (
+        <div className="space-y-2">
+          <p className="inline-flex items-center gap-1.5 text-xs text-destructive">
+            <AlertTriangle className="size-4" />
+            Couldn't check for updates.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={check}>
+              <RefreshCw className="size-3.5" />
+              Try again
+            </Button>
+            <button
+              type="button"
+              onClick={releaseNotes}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Download from GitHub
+              <ExternalLink className="size-3" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

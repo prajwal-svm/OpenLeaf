@@ -16,10 +16,52 @@ import { logError } from "@/lib/log";
 // Guard against overlapping checks (startup tick racing a manual click).
 let inFlight = false;
 
-async function findUpdate(): Promise<Update | null> {
+/**
+ * Ask the update server whether a newer version exists.
+ *
+ * Returns the `Update` (with `.version`, `.currentVersion`, `.body`) when one is
+ * available, or `null` when already up to date. In the browser dev server
+ * (`!isTauri()`) there is no updater, so this resolves to `null` - callers that
+ * need to tell "up to date" apart from "no updater" should check `isTauri()`
+ * themselves.
+ */
+export async function findUpdate(): Promise<Update | null> {
   if (!isTauri()) return null;
   const update = await check();
   return update ?? null;
+}
+
+/**
+ * Download and install an update, reporting progress, then restart into it.
+ *
+ * @param update      The `Update` returned by {@link findUpdate}.
+ * @param onProgress  Called with a 0-100 percentage as bytes arrive. When the
+ *                    release doesn't advertise a content length, percent stays
+ *                    at 0 until the download finishes (then 100).
+ */
+export async function installUpdate(
+  update: Update,
+  onProgress?: (percent: number) => void,
+): Promise<void> {
+  let total = 0;
+  let downloaded = 0;
+  await update.downloadAndInstall((event) => {
+    switch (event.event) {
+      case "Started":
+        total = event.data.contentLength ?? 0;
+        onProgress?.(0);
+        break;
+      case "Progress":
+        downloaded += event.data.chunkLength;
+        if (total > 0) onProgress?.(Math.min(100, Math.round((downloaded / total) * 100)));
+        break;
+      case "Finished":
+        onProgress?.(100);
+        break;
+    }
+  });
+  // Restart into the freshly installed version.
+  await relaunch();
 }
 
 /**

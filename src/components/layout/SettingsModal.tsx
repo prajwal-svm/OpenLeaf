@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-shell";
 import { Button } from "@/components/ui/button";
+import { UpdateChecker } from "@/components/layout/UpdateChecker";
 import {
   Select,
   SelectContent,
@@ -1407,6 +1408,7 @@ function HelpSection() {
           A local-first, cross-platform LaTeX &amp; resume authoring app.
           {version && <span className="ml-1">· v{version}</span>}
         </p>
+        <UpdateChecker className="mt-3" />
       </div>
 
       <div className="space-y-1">
