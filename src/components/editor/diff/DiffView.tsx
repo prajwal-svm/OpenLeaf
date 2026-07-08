@@ -5,9 +5,10 @@ import { MergeView, unifiedMergeView } from "@codemirror/merge";
 import { Columns2, GitCompare, Rows3 } from "lucide-react";
 import { editorTheme } from "../cm/theme";
 import { languageForPath } from "../cm/languages";
-import { gitShow, readFileContent } from "@/lib/tauri";
+import { gitShow, readFileContent, writeFileContent } from "@/lib/tauri";
 import { useDiffStore } from "@/store/diff";
 import { useFilesStore } from "@/store/files";
+import { useGitStatusStore } from "@/store/git-status";
 import { cn } from "@/lib/utils";
 import { diffSides } from "./sides";
 
@@ -27,40 +28,61 @@ export function DiffView() {
 
   useEffect(() => {
     if (!diff || !projectId) return;
+    const { path, side } = diff;
     let cancelled = false;
     let view: { destroy: () => void } | null = null;
+    let writeTimer: ReturnType<typeof setTimeout> | null = null;
     setLoading(true);
     setError(null);
-    const { oldRev, newRev } = diffSides(diff.side);
+    const { oldRev, newRev, editable } = diffSides(side);
+
+    // Editable working-tree diff: persist edits to disk (debounced) so git sees
+    // them; the MergeView re-diffs live against the fixed old side as you type.
+    const persist = async (content: string) => {
+      try {
+        await writeFileContent(projectId, path, content);
+        useFilesStore.setState((s) => ({
+          files: { ...s.files, [path]: { content, dirty: false } },
+        }));
+        void useGitStatusStore.getState().refresh(projectId);
+        window.dispatchEvent(new CustomEvent("openleaf:git-changed"));
+      } catch {
+        /* ignore transient write errors */
+      }
+    };
+    const onEdit = EditorView.updateListener.of((vu) => {
+      if (vu.docChanged) {
+        if (writeTimer) clearTimeout(writeTimer);
+        const content = vu.state.doc.toString();
+        writeTimer = setTimeout(() => void persist(content), 400);
+      }
+    });
 
     const build = async () => {
       try {
-        const oldText = await gitShow(projectId, oldRev, diff.path);
+        const oldText = await gitShow(projectId, oldRev, path);
         const newText =
           newRev === "WORKTREE"
-            ? await readFileContent(projectId, diff.path).catch(() => "")
-            : await gitShow(projectId, "INDEX", diff.path);
+            ? await readFileContent(projectId, path).catch(() => "")
+            : await gitShow(projectId, "INDEX", path);
         if (cancelled) return;
         const host = hostRef.current;
         if (!host) return;
         host.innerHTML = "";
 
-        const lang = languageForPath(diff.path);
+        const lang = languageForPath(path);
         const readOnly: Extension[] = [
           EditorState.readOnly.of(true),
           EditorView.editable.of(false),
         ];
-        const common: Extension[] = [
-          lineNumbers(),
-          editorTheme(),
-          ...(lang ? [lang] : []),
-          ...readOnly,
-        ];
+        const base: Extension[] = [lineNumbers(), editorTheme(), ...(lang ? [lang] : [])];
+        const oldExt: Extension[] = [...base, ...readOnly];
+        const newExt: Extension[] = editable ? [...base, onEdit] : [...base, ...readOnly];
 
         if (mode === "split") {
           view = new MergeView({
-            a: { doc: oldText, extensions: common },
-            b: { doc: newText, extensions: common },
+            a: { doc: oldText, extensions: oldExt },
+            b: { doc: newText, extensions: newExt },
             parent: host,
             highlightChanges: true,
             gutter: true,
@@ -71,7 +93,7 @@ export function DiffView() {
             doc: newText,
             extensions: [
               unifiedMergeView({ original: oldText, mergeControls: false }),
-              ...common,
+              ...newExt,
             ],
             parent: host,
           });
@@ -88,6 +110,7 @@ export function DiffView() {
 
     return () => {
       cancelled = true;
+      if (writeTimer) clearTimeout(writeTimer);
       view?.destroy();
       if (hostRef.current) hostRef.current.innerHTML = "";
     };

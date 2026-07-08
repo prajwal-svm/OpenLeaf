@@ -3,6 +3,7 @@ import {
   GitBranch,
   Github,
   Loader2,
+  Minus,
   Plus,
   RefreshCw,
   Trash2,
@@ -12,14 +13,18 @@ import { useFilesStore } from "@/store/files";
 import { useDiffStore } from "@/store/diff";
 import {
   gitAheadBehind,
-  gitAutoCommit,
+  gitCommit,
   gitCurrentBranch,
   gitDiscard,
   gitGetRemote,
   gitPull,
   gitPush,
   gitRemoveRemote,
+  gitStage,
+  gitStageAll,
   gitStatus,
+  gitUnstage,
+  gitUnstageAll,
   getConfig,
   type AheadBehind,
   type GitFileChange,
@@ -92,6 +97,10 @@ export function SourceControl() {
 
   useEffect(() => {
     void refresh();
+    // Refresh when an editable diff (or other action) mutates the working tree.
+    const onChanged = () => void refresh();
+    window.addEventListener("openleaf:git-changed", onChanged);
+    return () => window.removeEventListener("openleaf:git-changed", onChanged);
   }, [refresh]);
 
   const pull = async () => {
@@ -141,6 +150,20 @@ export function SourceControl() {
     }
   };
 
+  const runGit = async (op: () => Promise<unknown>) => {
+    if (!projectId) return;
+    try {
+      await op();
+      await refresh();
+    } catch (e) {
+      setStatus({ ok: false, text: String(e) });
+    }
+  };
+  const stageFile = (path: string) => runGit(() => gitStage(projectId!, path));
+  const unstageFile = (path: string) => runGit(() => gitUnstage(projectId!, path));
+  const stageAll = () => runGit(() => gitStageAll(projectId!));
+  const unstageAll = () => runGit(() => gitUnstageAll(projectId!));
+
   const submit = async (andPush: boolean) => {
     if (!projectId) return;
     const msg = message.trim();
@@ -153,7 +176,13 @@ export function SourceControl() {
     setBusy(true);
     setStatus(null);
     try {
-      const committed = hasChanges ? await gitAutoCommit(projectId, msg) : false;
+      let committed = false;
+      if (hasChanges) {
+        // Commit the staged set; if nothing is staged, stage everything first
+        // (VS Code's "Stage all & commit" fallback).
+        if (!changes.some((c) => c.staged)) await gitStageAll(projectId);
+        committed = await gitCommit(projectId, msg);
+      }
       const parts: string[] = [committed ? `Committed: "${msg}"` : "No changes to commit."];
       if (andPush) {
         if (!hasToken) {
@@ -197,12 +226,22 @@ export function SourceControl() {
             {dir && <span className="block truncate text-[10px] text-muted-foreground">{dir}</span>}
           </span>
         </button>
+        {!c.staged && (
+          <button
+            onClick={() => void discard(c.path)}
+            aria-label="Discard changes"
+            className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-destructive group-hover:opacity-100"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        )}
         <button
-          onClick={() => void discard(c.path)}
-          aria-label="Discard changes"
-          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-destructive group-hover:opacity-100"
+          onClick={() => void (c.staged ? unstageFile(c.path) : stageFile(c.path))}
+          aria-label={c.staged ? "Unstage" : "Stage"}
+          title={c.staged ? "Unstage" : "Stage"}
+          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100"
         >
-          <Trash2 className="size-3.5" />
+          {c.staged ? <Minus className="size-3.5" /> : <Plus className="size-3.5" />}
         </button>
       </div>
     );
@@ -257,20 +296,40 @@ export function SourceControl() {
           <>
             {staged.length > 0 && (
               <div className="mb-2">
-                <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                  Staged ({staged.length})
+                <div className="group/hdr flex items-center gap-1 px-2 pb-1">
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                    Staged ({staged.length})
+                  </span>
+                  <button
+                    onClick={() => void unstageAll()}
+                    title="Unstage all"
+                    aria-label="Unstage all"
+                    className="ml-auto flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground group-hover/hdr:opacity-100"
+                  >
+                    <Minus className="size-3.5" />
+                  </button>
                 </div>
                 {staged.map(renderRow)}
               </div>
             )}
-            <div>
-              {staged.length > 0 && unstaged.length > 0 && (
-                <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                  Changes ({unstaged.length})
+            {unstaged.length > 0 && (
+              <div className="group/hdr">
+                <div className="flex items-center gap-1 px-2 pb-1">
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                    Changes ({unstaged.length})
+                  </span>
+                  <button
+                    onClick={() => void stageAll()}
+                    title="Stage all"
+                    aria-label="Stage all"
+                    className="ml-auto flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground group-hover/hdr:opacity-100"
+                  >
+                    <Plus className="size-3.5" />
+                  </button>
                 </div>
-              )}
-              {unstaged.map(renderRow)}
-            </div>
+                {unstaged.map(renderRow)}
+              </div>
+            )}
           </>
         )}
 
