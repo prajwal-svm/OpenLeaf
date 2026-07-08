@@ -508,7 +508,10 @@ fn unstage(root: &PathBuf, path: &str) -> Result<(), String> {
     let out = if has_head(root) {
         run_git(root, &["reset", "-q", "HEAD", "--", path])?
     } else {
-        run_git(root, &["rm", "--cached", "-q", "--ignore-unmatch", "--", path])?
+        run_git(
+            root,
+            &["rm", "--cached", "-q", "--ignore-unmatch", "--", path],
+        )?
     };
     ok_or_err(out)
 }
@@ -521,7 +524,10 @@ fn unstage_all(root: &PathBuf) -> Result<(), String> {
     let out = if has_head(root) {
         run_git(root, &["reset", "-q", "HEAD", "--", "."])?
     } else {
-        run_git(root, &["rm", "-r", "--cached", "-q", "--ignore-unmatch", "--", "."])?
+        run_git(
+            root,
+            &["rm", "-r", "--cached", "-q", "--ignore-unmatch", "--", "."],
+        )?
     };
     ok_or_err(out)
 }
@@ -598,7 +604,7 @@ mod tests {
         commit_index, is_allowed_remote_url, parse_status_porcelain, run_git, sanitize_url, show,
         stage, stage_all, unstage, unstage_all,
     };
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU32, Ordering};
 
     static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -606,7 +612,8 @@ mod tests {
     /// Create a throwaway git repo in a temp dir with a fixed identity.
     fn temp_repo() -> PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::SeqCst);
-        let dir = std::env::temp_dir().join(format!("openleaf-git-test-{}-{n}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("openleaf-git-test-{}-{n}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         run_git(&dir, &["init", "--quiet"]).unwrap();
@@ -616,7 +623,7 @@ mod tests {
         dir
     }
 
-    fn write(root: &PathBuf, name: &str, content: &str) {
+    fn write(root: &Path, name: &str, content: &str) {
         std::fs::write(root.join(name), content).unwrap();
     }
 
@@ -647,12 +654,12 @@ mod tests {
         write(&r, "a.txt", "one\n");
         write(&r, "b.txt", "two\n");
         stage(&r, "a.txt").unwrap(); // b.txt left unstaged
-        assert_eq!(commit_index(&r, "first").unwrap(), true);
+        assert!(commit_index(&r, "first").unwrap());
         let s = status(&r);
         assert_eq!(s.len(), 1);
         assert_eq!(s[0].path, "b.txt");
         // Nothing staged now -> commit is a no-op returning false.
-        assert_eq!(commit_index(&r, "noop").unwrap(), false);
+        assert!(!commit_index(&r, "noop").unwrap());
     }
 
     #[test]

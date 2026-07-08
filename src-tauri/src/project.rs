@@ -1148,7 +1148,11 @@ fn find_pandoc() -> Option<String> {
     let mut candidates: Vec<PathBuf> = Vec::new();
     // Our own on-demand download location wins first (guaranteed compatible).
     if let Ok(root) = paths::openleaf_root() {
-        candidates.push(root.join("bin").join(if cfg!(windows) { "pandoc.exe" } else { "pandoc" }));
+        candidates.push(root.join("bin").join(if cfg!(windows) {
+            "pandoc.exe"
+        } else {
+            "pandoc"
+        }));
     }
     candidates.extend([
         PathBuf::from("/opt/homebrew/bin/pandoc"),
@@ -1246,7 +1250,11 @@ fn extract_pandoc(
     dest: &std::path::Path,
 ) -> Result<(), String> {
     use std::io::{Read, Write};
-    let want = if cfg!(windows) { "bin/pandoc.exe" } else { "bin/pandoc" };
+    let want = if cfg!(windows) {
+        "bin/pandoc.exe"
+    } else {
+        "bin/pandoc"
+    };
     let file = std::fs::File::open(archive).map_err(|e| e.to_string())?;
     if is_targz {
         let gz = flate2::read::GzDecoder::new(file);
@@ -1310,12 +1318,19 @@ pub async fn download_pandoc(app: tauri::AppHandle) -> Result<String, String> {
         let chunk = chunk.map_err(|e| format!("download interrupted: {e}"))?;
         received += chunk.len() as u64;
         file.write_all(&chunk).map_err(|e| e.to_string())?;
-        let _ = app.emit("pandoc-download-progress", PandocProgress { received, total });
+        let _ = app.emit(
+            "pandoc-download-progress",
+            PandocProgress { received, total },
+        );
     }
     file.flush().map_err(|e| e.to_string())?;
     drop(file);
 
-    let dest = bin_dir.join(if cfg!(windows) { "pandoc.exe" } else { "pandoc" });
+    let dest = bin_dir.join(if cfg!(windows) {
+        "pandoc.exe"
+    } else {
+        "pandoc"
+    });
     let extracted = extract_pandoc(&tmp, is_targz, &dest);
     let _ = std::fs::remove_file(&tmp);
     extracted?;

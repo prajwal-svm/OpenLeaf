@@ -43,7 +43,10 @@ pub fn reveal_in_dir(path: String) -> Result<(), String> {
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        let dir = p.parent().map(|d| d.to_string_lossy().into_owned()).unwrap_or(path.clone());
+        let dir = p
+            .parent()
+            .map(|d| d.to_string_lossy().into_owned())
+            .unwrap_or(path.clone());
         std::process::Command::new("xdg-open")
             .arg(&dir)
             .spawn()
