@@ -26,9 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Version comes from the `packageManager` field in the root package.json
+      # (matches CI); passing an explicit version conflicts with it.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -41,6 +41,8 @@ jobs:
         working-directory: website
         run: pnpm build
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: website/dist

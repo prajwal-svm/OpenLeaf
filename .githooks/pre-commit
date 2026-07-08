@@ -5,6 +5,7 @@
 #
 #   Frontend: pnpm lint  |  pnpm build (tsc -b + vite build)  |  pnpm test
 #   Rust:     cargo fmt --check  |  cargo clippy -D warnings  |  cargo test --lib
+#   Docs:     website build (sync docs/ -> Starlight -> astro build)
 #
 # Only the areas you touched run, so a frontend-only commit skips the Rust
 # gate and vice-versa. Skip everything with:  git commit --no-verify
@@ -41,6 +42,18 @@ if printf '%s\n' "$staged" | grep -qE '^src-tauri/'; then
   cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings || fail "cargo clippy"
   echo "→ rust: tests"
   cargo test --manifest-path src-tauri/Cargo.toml --lib || fail "cargo test"
+fi
+
+# Docs-site gate: any authored docs or website source. Builds the Starlight
+# site (which also runs the docs sync) to catch broken content or config. Only
+# runs when the site's deps are installed, so it never forces an install.
+if printf '%s\n' "$staged" | grep -qE '^(docs/|website/)'; then
+  if [ -d website/node_modules ]; then
+    echo "→ docs: build site"
+    ( cd website && pnpm build ) || fail "docs site build"
+  else
+    echo "→ docs: skipped (run 'pnpm -C website install' to enable this gate)"
+  fi
 fi
 
 printf '\033[32m✓ pre-commit checks passed\033[0m\n'
