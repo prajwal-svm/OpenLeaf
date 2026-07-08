@@ -1,14 +1,27 @@
 import { create } from "zustand";
 
-interface DiffState {
-  diff: { path: string; text: string } | null;
-  openDiff: (path: string, text: string) => void;
-  closeDiff: () => void;
+export type DiffSide = "working" | "staged";
+export type DiffMode = "split" | "unified";
+
+export interface OpenDiff {
+  path: string;
+  /** "working" = worktree vs index (editable later); "staged" = index vs HEAD (read-only). */
+  side: DiffSide;
 }
 
-/** Holds the currently-opened git diff, rendered in the editor area. */
+interface DiffState {
+  diff: OpenDiff | null;
+  mode: DiffMode;
+  openDiff: (path: string, side: DiffSide) => void;
+  closeDiff: () => void;
+  setMode: (mode: DiffMode) => void;
+}
+
+/** The git diff currently shown in the editor area (replaces the old modal). */
 export const useDiffStore = create<DiffState>((set) => ({
   diff: null,
-  openDiff: (path, text) => set({ diff: { path, text } }),
+  mode: "split",
+  openDiff: (path, side) => set({ diff: { path, side } }),
   closeDiff: () => set({ diff: null }),
+  setMode: (mode) => set({ mode }),
 }));

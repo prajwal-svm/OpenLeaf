@@ -1,22 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Columns2,
   GitBranch,
   Github,
   Loader2,
   Plus,
   RefreshCw,
-  Rows3,
   Trash2,
   Upload,
-  X,
 } from "lucide-react";
 import { useFilesStore } from "@/store/files";
+import { useDiffStore } from "@/store/diff";
 import {
   gitAheadBehind,
   gitAutoCommit,
   gitCurrentBranch,
-  gitDiff,
   gitDiscard,
   gitGetRemote,
   gitPull,
@@ -47,73 +44,6 @@ function meta(code: string) {
   return STATUS_META[code] ?? { label: code.slice(0, 1), cls: "bg-muted text-muted-foreground" };
 }
 
-type DiffRow = {
-  kind: "meta" | "hunk" | "context" | "del" | "add";
-  text: string;
-  oldLine?: number;
-  newLine?: number;
-};
-
-function parseDiff(text: string): DiffRow[] {
-  const rows: DiffRow[] = [];
-  let oldLine = 0;
-  let newLine = 0;
-  for (const raw of text.split("\n")) {
-    if (raw.startsWith("@@")) {
-      const m = raw.match(/@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/);
-      if (m) {
-        oldLine = +m[1];
-        newLine = +m[2];
-      }
-      rows.push({ kind: "hunk", text: raw });
-    } else if (
-      raw.startsWith("diff ") ||
-      raw.startsWith("index ") ||
-      raw.startsWith("---") ||
-      raw.startsWith("+++") ||
-      raw.startsWith("\\")
-    ) {
-      rows.push({ kind: "meta", text: raw });
-    } else if (raw.startsWith("-")) {
-      rows.push({ kind: "del", text: raw.slice(1), oldLine: oldLine++ });
-    } else if (raw.startsWith("+")) {
-      rows.push({ kind: "add", text: raw.slice(1), newLine: newLine++ });
-    } else {
-      rows.push({
-        kind: "context",
-        text: raw.replace(/^ /, ""),
-        oldLine: oldLine++,
-        newLine: newLine++,
-      });
-    }
-  }
-  return rows;
-}
-
-function toSplitPairs(rows: DiffRow[]) {
-  const out: { l?: DiffRow; r?: DiffRow }[] = [];
-  let dels: DiffRow[] = [];
-  let adds: DiffRow[] = [];
-  const flush = () => {
-    const max = Math.max(dels.length, adds.length);
-    for (let k = 0; k < max; k++) out.push({ l: dels[k], r: adds[k] });
-    dels = [];
-    adds = [];
-  };
-  for (const r of rows) {
-    if (r.kind === "context") {
-      flush();
-      out.push({ l: r, r: r });
-    } else if (r.kind === "del") dels.push(r);
-    else if (r.kind === "add") adds.push(r);
-    else {
-      flush();
-      out.push({ l: r });
-    }
-  }
-  flush();
-  return out;
-}
 
 export function SourceControl() {
   const projectId = useFilesStore((s) => s.projectId);
@@ -136,10 +66,8 @@ export function SourceControl() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
-  const [diff, setDiff] = useState<{ path: string; text: string } | null>(null);
-  const [diffBusy, setDiffBusy] = useState(false);
-  const [split, setSplit] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const openDiff = useDiffStore((s) => s.openDiff);
 
   const refresh = useCallback(async () => {
     if (!projectId) return;
@@ -198,17 +126,8 @@ export function SourceControl() {
     }
   };
 
-  const viewDiff = async (path: string, staged: boolean) => {
-    if (!projectId) return;
-    setDiffBusy(true);
-    try {
-      const text = await gitDiff(projectId, path, staged);
-      setDiff({ path, text: text || "(no textual changes)" });
-    } catch (e) {
-      setDiff({ path, text: String(e) });
-    } finally {
-      setDiffBusy(false);
-    }
+  const viewDiff = (path: string, staged: boolean) => {
+    openDiff(path, staged ? "staged" : "working");
   };
 
   const discard = async (path: string) => {
@@ -490,104 +409,6 @@ export function SourceControl() {
           >
             Use a personal access token instead
           </button>
-        </div>
-      )}
-
-      {/* Diff viewer */}
-      {diff && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" onClick={() => setDiff(null)}>
-          <div className="flex max-h-[80vh] w-full max-w-3xl flex-col rounded-xl border bg-background shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
-              <span className="min-w-0 flex-1 truncate font-mono text-xs">{diff.path}</span>
-              <div className="flex items-center rounded-md border p-0.5">
-                <Tooltip label="Unified view">
-                  <button
-                    aria-label="Unified view"
-                    onClick={() => setSplit(false)}
-                    className={cn("flex size-6 items-center justify-center rounded", !split ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}
-                  >
-                    <Rows3 className="size-3.5" />
-                  </button>
-                </Tooltip>
-                <Tooltip label="Split view">
-                  <button
-                    aria-label="Split view"
-                    onClick={() => setSplit(true)}
-                    className={cn("flex size-6 items-center justify-center rounded", split ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}
-                  >
-                    <Columns2 className="size-3.5" />
-                  </button>
-                </Tooltip>
-              </div>
-              <button onClick={() => setDiff(null)} className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
-                <X className="size-4" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-auto bg-background">
-              {diffBusy ? (
-                <div className="flex items-center justify-center p-6 text-xs text-muted-foreground">
-                  <Loader2 className="mr-2 size-4 animate-spin" /> Loading diff…
-                </div>
-              ) : split ? (
-                <div className="min-w-max bg-background font-mono text-[12px] leading-[1.6]">
-                  {toSplitPairs(parseDiff(diff.text)).map((pair, i) => {
-                    const l = pair.l;
-                    const r = pair.r;
-                    if (l && l.kind === "meta") return null;
-                    if (l && l.kind === "hunk") {
-                      return (
-                        <div key={i} className="border-y border-border/60 bg-muted/40 px-3 py-0.5 text-[10px] text-muted-foreground">
-                          {l.text}
-                        </div>
-                      );
-                    }
-                    const lDel = l?.kind === "del";
-                    const rAdd = r?.kind === "add";
-                    return (
-                      <div key={i} className="grid grid-cols-[1rem_3rem_minmax(14rem,1fr)_1rem_3rem_minmax(14rem,1fr)] items-start border-b border-border/10">
-                        <span className={cn("select-none text-center", lDel ? "bg-red-500/15 text-red-500" : "text-transparent")}>{lDel ? "-" : " "}</span>
-                        <span className="select-none border-r border-border/40 bg-muted/20 pr-2 text-right text-muted-foreground/50">{l?.oldLine ?? ""}</span>
-                        <span className={cn("whitespace-pre px-3", lDel ? "bg-red-500/10 text-foreground" : l ? "text-foreground" : "text-muted-foreground/30")}>{l ? l.text || " " : ""}</span>
-                        <span className={cn("select-none text-center", rAdd ? "bg-emerald-500/15 text-emerald-500" : "text-transparent")}>{rAdd ? "+" : " "}</span>
-                        <span className="select-none border-r border-border/40 bg-muted/20 pr-2 text-right text-muted-foreground/50">{r?.newLine ?? ""}</span>
-                        <span className={cn("whitespace-pre px-3", rAdd ? "bg-emerald-500/10 text-foreground" : r ? "text-foreground" : "text-muted-foreground/30")}>{r ? r.text || " " : ""}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="min-w-max bg-background font-mono text-[12px] leading-[1.6]">
-                  {parseDiff(diff.text).map((r, i) => {
-                    if (r.kind === "meta") return null;
-                    if (r.kind === "hunk") {
-                      return (
-                        <div key={i} className="border-y border-border/60 bg-muted/40 px-3 py-0.5 text-[10px] text-muted-foreground">
-                          {r.text}
-                        </div>
-                      );
-                    }
-                    const del = r.kind === "del";
-                    const add = r.kind === "add";
-                    return (
-                      <div
-                        key={i}
-                        className={cn(
-                          "grid grid-cols-[1rem_3rem_3rem_1fr] items-start",
-                          del && "bg-red-500/10",
-                          add && "bg-emerald-500/10"
-                        )}
-                      >
-                        <span className={cn("select-none text-center", del ? "text-red-500" : add ? "text-emerald-500" : "text-transparent")}>{del ? "-" : add ? "+" : " "}</span>
-                        <span className="select-none border-r border-border/40 pr-2 text-right text-muted-foreground/50">{r.oldLine ?? ""}</span>
-                        <span className="select-none border-r border-border/40 pr-2 text-right text-muted-foreground/50">{r.newLine ?? ""}</span>
-                        <span className="whitespace-pre px-3 text-foreground">{r.text || " "}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       )}
 

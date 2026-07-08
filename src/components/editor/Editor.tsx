@@ -3,9 +3,11 @@ import { FileText, X } from "lucide-react";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { EditorToolbar } from "./EditorToolbar";
+import { DiffView } from "./diff/DiffView";
 import { PdfViewer } from "@/components/pdf/PdfViewer";
 import { wrapSelection } from "./cm/controller";
 import { useFilesStore } from "@/store/files";
+import { useDiffStore } from "@/store/diff";
 import { base64ToUint8Array, readFileBase64 } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +43,8 @@ export function Editor() {
   const setActive = useFilesStore((s) => s.setActive);
   const closeTab = useFilesStore((s) => s.closeTab);
   const dirtyMap = useFilesStore((s) => s.files);
+  const diff = useDiffStore((s) => s.diff);
+  const closeDiff = useDiffStore((s) => s.closeDiff);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -73,7 +77,10 @@ export function Editor() {
         {openTabs.map((path) => (
           <button
             key={path}
-            onClick={() => setActive(path)}
+            onClick={() => {
+              closeDiff();
+              setActive(path);
+            }}
             className={cn(
               "group flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs",
               path === activePath
@@ -100,7 +107,9 @@ export function Editor() {
         ))}
       </div>
       {/* Editor body */}
-      {hasOpenFile ? (
+      {diff ? (
+        <DiffView />
+      ) : hasOpenFile ? (
         <>
           {isTexFile && (
             <div className="shrink-0">
