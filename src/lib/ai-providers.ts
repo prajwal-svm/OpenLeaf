@@ -180,3 +180,50 @@ export function buildModel(provider: string, model: string, credential: string) 
     ...(baseURL ? { baseURL } : {}),
   }).chat(model);
 }
+
+/** The AI-related fields of the app config that provider resolution reads. */
+export interface AIConfigLike {
+  ai_provider?: string;
+  ai_model?: string;
+  ai_api_key?: string;
+  ai_keys?: Record<string, string>;
+}
+
+/**
+ * Resolve the active provider/model/credential from the stored config, matching
+ * the chat panel's logic: prefer the saved provider if it has a key, otherwise
+ * fall back to the first configured one; fold the legacy single key into the map.
+ */
+export function pickActiveProvider(cfg: AIConfigLike): {
+  providerId: string;
+  modelId: string;
+  credential: string;
+} {
+  const saved = cfg.ai_provider || "openai";
+  const keys = { ...(cfg.ai_keys ?? {}) };
+  if (cfg.ai_api_key && !keys[saved]) keys[saved] = cfg.ai_api_key;
+  const configured = Object.keys(keys).filter((k) => (keys[k] ?? "").trim());
+  const providerId = (keys[saved] ?? "").trim() ? saved : configured[0] ?? saved;
+  const credential = keys[providerId] ?? "";
+  const modelId =
+    providerId === saved && cfg.ai_model ? cfg.ai_model : defaultModel(providerId);
+  return { providerId, modelId, credential };
+}
+
+/** Whether any provider is configured with a non-empty key/host. */
+export function hasConfiguredProvider(cfg: AIConfigLike): boolean {
+  return pickActiveProvider(cfg).credential.trim().length > 0;
+}
+
+/** Build the runnable model for the active provider, plus a display label. */
+export function resolveActiveModel(cfg: AIConfigLike): {
+  model: ReturnType<typeof buildModel>;
+  providerId: string;
+  modelId: string;
+  label: string;
+} {
+  const { providerId, modelId, credential } = pickActiveProvider(cfg);
+  const label =
+    getProvider(providerId)?.models.find((m) => m.id === modelId)?.name ?? modelId;
+  return { model: buildModel(providerId, modelId, credential), providerId, modelId, label };
+}
