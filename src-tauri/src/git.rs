@@ -466,9 +466,219 @@ pub fn git_head_oid(project_id: String) -> Result<Option<String>, String> {
     Ok(if s.is_empty() { None } else { Some(s) })
 }
 
+// --- Staging & index-only commit (VS Code-style source control) ---
+
+/// Whether the repo has a HEAD commit yet (false on a fresh repo).
+fn has_head(root: &PathBuf) -> bool {
+    run_git(root, &["rev-parse", "--verify", "--quiet", "HEAD"])
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Whether the index holds anything different from HEAD (i.e. staged changes).
+fn has_staged_changes(root: &PathBuf) -> bool {
+    if has_head(root) {
+        // `diff --cached --quiet` exits non-zero when there ARE staged changes.
+        run_git(root, &["diff", "--cached", "--quiet"])
+            .map(|o| !o.status.success())
+            .unwrap_or(false)
+    } else {
+        // No commit yet: any entry in the index counts as staged.
+        run_git(root, &["ls-files", "--cached"])
+            .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
+            .unwrap_or(false)
+    }
+}
+
+fn ok_or_err(out: std::process::Output) -> Result<(), String> {
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(out_to_string(&out))
+    }
+}
+
+fn stage(root: &PathBuf, path: &str) -> Result<(), String> {
+    ok_or_err(run_git(root, &["add", "--", path])?)
+}
+
+fn unstage(root: &PathBuf, path: &str) -> Result<(), String> {
+    // With a HEAD, reset the path back to HEAD in the index. Without one (initial
+    // commit), there's nothing to reset to, so drop it from the index instead.
+    let out = if has_head(root) {
+        run_git(root, &["reset", "-q", "HEAD", "--", path])?
+    } else {
+        run_git(root, &["rm", "--cached", "-q", "--ignore-unmatch", "--", path])?
+    };
+    ok_or_err(out)
+}
+
+fn stage_all(root: &PathBuf) -> Result<(), String> {
+    ok_or_err(run_git(root, &["add", "-A"])?)
+}
+
+fn unstage_all(root: &PathBuf) -> Result<(), String> {
+    let out = if has_head(root) {
+        run_git(root, &["reset", "-q", "HEAD", "--", "."])?
+    } else {
+        run_git(root, &["rm", "-r", "--cached", "-q", "--ignore-unmatch", "--", "."])?
+    };
+    ok_or_err(out)
+}
+
+/// Commit the staged index only. Returns false (no-op) when nothing is staged.
+fn commit_index(root: &PathBuf, message: &str) -> Result<bool, String> {
+    if !has_staged_changes(root) {
+        return Ok(false);
+    }
+    let out = run_git(root, &["commit", "--quiet", "-m", message])?;
+    if out.status.success() {
+        Ok(true)
+    } else {
+        Err(out_to_string(&out))
+    }
+}
+
+/// Content of `path` at a revision: `rev = "HEAD"` for the last commit, `"INDEX"`
+/// for the staged version. Missing in that revision (added/deleted/untracked)
+/// yields an empty string rather than an error.
+fn show(root: &PathBuf, rev: &str, path: &str) -> Result<String, String> {
+    let object = if rev == "INDEX" {
+        format!(":{path}")
+    } else {
+        format!("{rev}:{path}")
+    };
+    let out = run_git(root, &["show", &object])?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).to_string())
+    } else {
+        Ok(String::new())
+    }
+}
+
+#[tauri::command]
+pub fn git_stage(project_id: String, path: String) -> Result<(), String> {
+    let root = ensure_repo(&project_id)?;
+    stage(&root, &path)
+}
+
+#[tauri::command]
+pub fn git_unstage(project_id: String, path: String) -> Result<(), String> {
+    let root = ensure_repo(&project_id)?;
+    unstage(&root, &path)
+}
+
+#[tauri::command]
+pub fn git_stage_all(project_id: String) -> Result<(), String> {
+    let root = ensure_repo(&project_id)?;
+    stage_all(&root)
+}
+
+#[tauri::command]
+pub fn git_unstage_all(project_id: String) -> Result<(), String> {
+    let root = ensure_repo(&project_id)?;
+    unstage_all(&root)
+}
+
+#[tauri::command]
+pub fn git_commit(project_id: String, message: String) -> Result<bool, String> {
+    let root = ensure_repo(&project_id)?;
+    commit_index(&root, &message)
+}
+
+#[tauri::command]
+pub fn git_show(project_id: String, rev: String, path: String) -> Result<String, String> {
+    let root = ensure_repo(&project_id)?;
+    show(&root, &rev, &path)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{is_allowed_remote_url, parse_status_porcelain, sanitize_url};
+    use super::{
+        commit_index, is_allowed_remote_url, parse_status_porcelain, run_git, sanitize_url, show,
+        stage, stage_all, unstage, unstage_all,
+    };
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    /// Create a throwaway git repo in a temp dir with a fixed identity.
+    fn temp_repo() -> PathBuf {
+        let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!("openleaf-git-test-{}-{n}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        run_git(&dir, &["init", "--quiet"]).unwrap();
+        run_git(&dir, &["symbolic-ref", "HEAD", "refs/heads/main"]).unwrap();
+        run_git(&dir, &["config", "user.email", "t@t"]).unwrap();
+        run_git(&dir, &["config", "user.name", "t"]).unwrap();
+        dir
+    }
+
+    fn write(root: &PathBuf, name: &str, content: &str) {
+        std::fs::write(root.join(name), content).unwrap();
+    }
+
+    fn status(root: &PathBuf) -> Vec<super::GitFileChange> {
+        let out = run_git(root, &["status", "--porcelain"]).unwrap();
+        parse_status_porcelain(&String::from_utf8_lossy(&out.stdout))
+    }
+
+    #[test]
+    fn stage_and_unstage_roundtrip_for_untracked() {
+        let r = temp_repo();
+        write(&r, "a.txt", "hi\n");
+        assert!(!status(&r)[0].staged);
+        stage(&r, "a.txt").unwrap();
+        let s = status(&r);
+        assert!(s[0].staged);
+        assert_eq!(s[0].status, "A");
+        // No HEAD yet: unstage must fall back to `rm --cached`.
+        unstage(&r, "a.txt").unwrap();
+        let s = status(&r);
+        assert!(!s[0].staged);
+        assert_eq!(s[0].status, "?");
+    }
+
+    #[test]
+    fn commit_index_commits_only_staged_files() {
+        let r = temp_repo();
+        write(&r, "a.txt", "one\n");
+        write(&r, "b.txt", "two\n");
+        stage(&r, "a.txt").unwrap(); // b.txt left unstaged
+        assert_eq!(commit_index(&r, "first").unwrap(), true);
+        let s = status(&r);
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].path, "b.txt");
+        // Nothing staged now -> commit is a no-op returning false.
+        assert_eq!(commit_index(&r, "noop").unwrap(), false);
+    }
+
+    #[test]
+    fn show_reads_head_index_and_empty_for_missing() {
+        let r = temp_repo();
+        write(&r, "a.txt", "v1\n");
+        stage(&r, "a.txt").unwrap();
+        commit_index(&r, "c1").unwrap();
+        write(&r, "a.txt", "v2\n");
+        stage(&r, "a.txt").unwrap(); // index = v2
+        write(&r, "a.txt", "v3\n"); // worktree = v3, index = v2, HEAD = v1
+        assert_eq!(show(&r, "HEAD", "a.txt").unwrap(), "v1\n");
+        assert_eq!(show(&r, "INDEX", "a.txt").unwrap(), "v2\n");
+        assert_eq!(show(&r, "HEAD", "missing.txt").unwrap(), "");
+    }
+
+    #[test]
+    fn stage_all_and_unstage_all_toggle_every_file() {
+        let r = temp_repo();
+        write(&r, "a.txt", "a\n");
+        write(&r, "b.txt", "b\n");
+        stage_all(&r).unwrap();
+        assert!(status(&r).iter().all(|c| c.staged));
+        unstage_all(&r).unwrap();
+        assert!(status(&r).iter().all(|c| !c.staged));
+    }
 
     #[test]
     fn porcelain_classifies_staged_vs_unstaged() {

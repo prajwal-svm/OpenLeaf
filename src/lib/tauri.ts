@@ -224,6 +224,26 @@ export const gitDiscard = (projectId: string, path: string) =>
 export const gitHeadOid = (projectId: string) =>
   invoke<string | null>("git_head_oid", { projectId });
 
+export const gitStage = (projectId: string, path: string) =>
+  invoke<void>("git_stage", { projectId, path });
+
+export const gitUnstage = (projectId: string, path: string) =>
+  invoke<void>("git_unstage", { projectId, path });
+
+export const gitStageAll = (projectId: string) =>
+  invoke<void>("git_stage_all", { projectId });
+
+export const gitUnstageAll = (projectId: string) =>
+  invoke<void>("git_unstage_all", { projectId });
+
+/** Commit the staged index only. Returns false when nothing is staged. */
+export const gitCommit = (projectId: string, message: string) =>
+  invoke<boolean>("git_commit", { projectId, message });
+
+/** Content of a path at a revision: rev = "HEAD" (last commit) or "INDEX" (staged). */
+export const gitShow = (projectId: string, rev: "HEAD" | "INDEX", path: string) =>
+  invoke<string>("git_show", { projectId, rev, path });
+
 export const downloadProjectZip = (projectId: string, dest: string) =>
   invoke<void>("download_project_zip", { projectId, dest });
 

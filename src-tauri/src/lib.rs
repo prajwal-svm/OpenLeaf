@@ -87,6 +87,12 @@ pub fn run() {
             git::git_diff,
             git::git_discard,
             git::git_head_oid,
+            git::git_stage,
+            git::git_unstage,
+            git::git_stage_all,
+            git::git_unstage_all,
+            git::git_commit,
+            git::git_show,
         ])
         .run(tauri::generate_context!())
         .expect("error while running OpenLeaf");
