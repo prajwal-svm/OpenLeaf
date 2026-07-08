@@ -71,6 +71,7 @@ pub fn run() {
             project::duplicate_project,
             project::clear_build_cache,
             project::delete_project,
+            commands::reveal_in_dir,
             config::get_config,
             config::set_config,
             git::git_auto_commit,

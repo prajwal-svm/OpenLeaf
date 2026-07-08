@@ -119,8 +119,11 @@ export const gitLog = (projectId: string) =>
 export const gitRestore = (projectId: string, oid: string) =>
   invoke<void>("git_restore", { projectId, oid });
 
-export const exportPdf = (projectId: string, mainDoc: string, dest: string) =>
-  invoke<void>("export_pdf", { projectId, mainDoc, dest });
+export const exportPdf = (projectId: string, dest: string) =>
+  invoke<void>("export_pdf", { projectId, dest });
+
+export const revealInDir = (path: string) =>
+  invoke<void>("reveal_in_dir", { path });
 
 export const exportDocument = (projectId: string, mainDoc: string, format: string, dest: string) =>
   invoke<void>("export_document", { projectId, mainDoc, format, dest });

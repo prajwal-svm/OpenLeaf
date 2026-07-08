@@ -90,8 +90,8 @@ export function Tooltip({
             ref={tipRef}
             role="tooltip"
             className={cn(
-              "fixed z-[200] max-w-[240px] whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-md",
-              !pos && "pointer-events-none opacity-0"
+              "pointer-events-none fixed z-[200] max-w-[240px] whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-md",
+              !pos && "opacity-0"
             )}
             style={pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 }}
           >

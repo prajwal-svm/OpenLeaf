@@ -19,6 +19,39 @@ pub fn app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+/// Reveal a file or folder in the platform's native file manager
+/// (Finder on macOS, Explorer on Windows, xdg-open on Linux).
+#[tauri::command]
+pub fn reveal_in_dir(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err(format!("path does not exist: {path}"));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| format!("failed to open Finder: {e}"))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{path}"))
+            .spawn()
+            .map_err(|e| format!("failed to open Explorer: {e}"))?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let dir = p.parent().map(|d| d.to_string_lossy().into_owned()).unwrap_or(path.clone());
+        std::process::Command::new("xdg-open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| format!("failed to open file manager: {e}"))?;
+    }
+    Ok(())
+}
+
 #[derive(Serialize, Clone)]
 pub struct CompileError {
     pub line: Option<u32>,

@@ -7,6 +7,7 @@ import {
   Mail,
   Moon,
   PanelLeft,
+  PanelLeftClose,
   Search,
   Settings as SettingsIcon,
   Sparkles,
@@ -91,17 +92,19 @@ export function Rail() {
       </div>
 
       <div className="flex flex-col items-center gap-1">
-        {!showTree && (
-          <Tooltip label="Show sidebar" side="right">
-            <button
-              aria-label="Show sidebar"
-              onClick={toggleTree}
-              className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors hover:bg-primary/20 dark:text-primary"
-            >
+        <Tooltip label={showTree ? "Hide sidebar" : "Show sidebar"} side="right">
+          <button
+            aria-label={showTree ? "Hide sidebar" : "Show sidebar"}
+            onClick={toggleTree}
+            className={railBtn(false)}
+          >
+            {showTree ? (
+              <PanelLeftClose className="size-5" />
+            ) : (
               <PanelLeft className="size-5" />
-            </button>
-          </Tooltip>
-        )}
+            )}
+          </button>
+        </Tooltip>
         <Tooltip label="Help" side="right">
           <div className="relative">
             <button

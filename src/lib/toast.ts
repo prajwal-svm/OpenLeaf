@@ -1,11 +1,13 @@
-import { useToastStore } from "@/store/toast";
+import { useToastStore, type ToastAction } from "@/store/toast";
 import { logError } from "@/lib/log";
 
 /** Fire a transient toast from anywhere (outside React too). */
 export const toast = {
   error: (message: string) => useToastStore.getState().push("error", message),
-  success: (message: string) => useToastStore.getState().push("success", message),
-  info: (message: string) => useToastStore.getState().push("info", message),
+  success: (message: string, action?: ToastAction) =>
+    useToastStore.getState().push("success", message, action),
+  info: (message: string, action?: ToastAction) =>
+    useToastStore.getState().push("info", message, action),
 };
 
 /**

@@ -21,7 +21,7 @@ import { useGithubStore } from "@/store/github";
 import { forwardFromCursor } from "@/features/synctex";
 import { checkForUpdatesOnStartup } from "@/lib/updater";
 import { cn } from "@/lib/utils";
-import { ArrowRight, PanelLeftClose } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 
 /** A clearly-grabbable, visible vertical resize handle (12px hit area).
@@ -37,34 +37,35 @@ function VHandle({
   placement?: "top" | "center" | "bottom";
 }) {
   return (
-    <PanelResizeHandle
-      id={id}
-      style={{ cursor: "col-resize" }}
-      className={cn(
-        "group relative flex w-3 shrink-0 cursor-col-resize items-center justify-center",
-        "transition-colors hover:bg-accent/40"
-      )}
-    >
-      <span
+    <div className="relative flex w-3 shrink-0 cursor-col-resize">
+      <PanelResizeHandle
+        id={id}
+        style={{ cursor: "col-resize" }}
         className={cn(
-          "pointer-events-none h-10 w-1 rounded-full bg-border transition-colors",
-          "group-hover:bg-ring group-data-[resize-handle-state=drag]:bg-ring"
+          "group absolute inset-0 flex cursor-col-resize items-center justify-center",
+          "transition-colors hover:bg-accent/40"
         )}
-      />
+      >
+        <span
+          className={cn(
+            "pointer-events-none h-10 w-1 rounded-full bg-border transition-colors",
+            "group-hover:bg-ring group-data-[resize-handle-state=drag]:bg-ring"
+          )}
+        />
+      </PanelResizeHandle>
       {children && (
         <div
           className={cn(
-            "absolute left-1/2 flex -translate-x-1/2 items-center",
+            "absolute left-1/2 z-10 flex -translate-x-1/2 items-center",
             placement === "center" && "inset-y-0",
             placement === "top" && "top-1",
             placement === "bottom" && "bottom-1"
           )}
-          onPointerDown={(e) => e.stopPropagation()}
         >
           {children}
         </div>
       )}
-    </PanelResizeHandle>
+    </div>
   );
 }
 
@@ -78,7 +79,7 @@ function DividerBtn({
   children: ReactNode;
 }) {
   return (
-    <Tooltip label={title} side="bottom">
+    <Tooltip label={title} side="right">
       <button
         type="button"
         aria-label={title}
@@ -102,7 +103,6 @@ export default function App() {
   const viewMode = useSettingsStore((s) => s.viewMode);
   const setViewMode = useSettingsStore((s) => s.setViewMode);
   const showTree = useSettingsStore((s) => s.showTree);
-  const toggleTree = useSettingsStore((s) => s.toggleTree);
   const editorFontSize = useSettingsStore((s) => s.editorFontSize);
   const accentColor = useSettingsStore((s) => s.accentColor);
 
@@ -205,11 +205,7 @@ export default function App() {
                 <Panel id="sidebar" order={1} defaultSize={20} minSize={12} maxSize={42} className="bg-sidebar">
                   <Sidebar />
                 </Panel>
-                <VHandle id="h-tree" placement="bottom">
-                  <DividerBtn onClick={() => toggleTree()} title="Hide sidebar">
-                    <PanelLeftClose className="size-3.5" />
-                  </DividerBtn>
-                </VHandle>
+                <VHandle id="h-tree" />
               </>
             )}
 

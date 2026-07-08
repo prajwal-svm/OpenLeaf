@@ -1063,13 +1063,9 @@ pub fn list_templates() -> Vec<TemplateInfo> {
 }
 
 #[tauri::command]
-pub fn export_pdf(project_id: String, main_doc: String, dest: String) -> Result<(), String> {
+pub fn export_pdf(project_id: String, dest: String) -> Result<(), String> {
     let build = paths::build_dir(&project_id)?;
-    let stem = Path::new(&main_doc)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("main");
-    let pdf = build.join(format!("{stem}.pdf"));
+    let pdf = build.join(format!("{}.pdf", paths::ENTRY_STEM));
     if !pdf.exists() {
         return Err("No compiled PDF found - recompile first.".into());
     }

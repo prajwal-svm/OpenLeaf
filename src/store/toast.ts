@@ -2,16 +2,22 @@ import { create } from "zustand";
 
 export type ToastKind = "error" | "success" | "info";
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface Toast {
   id: number;
   kind: ToastKind;
   message: string;
+  action?: ToastAction;
 }
 
 interface ToastState {
   toasts: Toast[];
   /** Show a toast; returns its id. */
-  push: (kind: ToastKind, message: string) => number;
+  push: (kind: ToastKind, message: string, action?: ToastAction) => number;
   dismiss: (id: number) => void;
 }
 

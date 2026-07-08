@@ -9,6 +9,9 @@ const DURATION: Record<ToastKind, number> = {
   info: 4000,
 };
 
+/** Toasts with an action button stay longer so the user has time to click. */
+const ACTION_BONUS = 4000;
+
 const ICON = {
   error: CircleAlert,
   success: CheckCircle2,
@@ -19,9 +22,10 @@ function ToastRow({ toast }: { toast: Toast }) {
   const dismiss = useToastStore((s) => s.dismiss);
 
   useEffect(() => {
-    const id = window.setTimeout(() => dismiss(toast.id), DURATION[toast.kind]);
+    const ms = DURATION[toast.kind] + (toast.action ? ACTION_BONUS : 0);
+    const id = window.setTimeout(() => dismiss(toast.id), ms);
     return () => window.clearTimeout(id);
-  }, [toast.id, toast.kind, dismiss]);
+  }, [toast.id, toast.kind, toast.action, dismiss]);
 
   const Icon = ICON[toast.kind];
   return (
@@ -45,6 +49,18 @@ function ToastRow({ toast }: { toast: Toast }) {
       <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-xs leading-relaxed">
         {toast.message}
       </p>
+      {toast.action && (
+        <button
+          type="button"
+          onClick={() => {
+            toast.action?.onClick();
+            dismiss(toast.id);
+          }}
+          className="shrink-0 rounded px-2 py-0.5 text-xs font-semibold text-primary hover:bg-primary/10"
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button
         type="button"
         onClick={() => dismiss(toast.id)}

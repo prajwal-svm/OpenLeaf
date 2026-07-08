@@ -23,7 +23,7 @@ import { useFilesStore } from "@/store/files";
 import { useCompileStore } from "@/store/compile";
 import { useSettingsStore, type ViewMode } from "@/store/settings";
 import { exportCurrentPdf } from "@/features/export";
-import { downloadProjectZip, duplicateProject, exportDocument } from "@/lib/tauri";
+import { downloadProjectZip, duplicateProject, exportDocument, revealInDir } from "@/lib/tauri";
 import { useFullscreen } from "@/lib/use-fullscreen";
 import { notifyError, toast } from "@/lib/toast";
 import { cn, isMac } from "@/lib/utils";
@@ -89,7 +89,10 @@ export function TopToolbar() {
     setExporting(format);
     try {
       await exportDocument(projectId, useFilesStore.getState().mainDoc || "main.tex", format, dest);
-      toast.success(`Exported ${format.toUpperCase()}.`);
+      toast.success(`${format.toUpperCase()} saved to ${dest}`, {
+        label: "View",
+        onClick: () => void revealInDir(dest),
+      });
     } catch (e) {
       notifyError(`export ${format}`, e);
     } finally {
@@ -208,6 +211,11 @@ export function TopToolbar() {
                   <FileText className="size-4 text-muted-foreground" />
                   Download as PDF
                 </button>
+                {!pdfBytes && (
+                  <p className="px-2 py-1 pl-8 text-[10px] text-muted-foreground">
+                    PDF requires a compile first
+                  </p>
+                )}
                 <div className="my-1 h-px bg-border" />
                 <button onClick={() => void doExportFormat("docx")} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent">
                   <FileType className="size-4 text-muted-foreground" />
@@ -221,9 +229,9 @@ export function TopToolbar() {
                   <FileType className="size-4 text-muted-foreground" />
                   Export as Markdown (.md)
                 </button>
-                {(exporting || !pdfBytes) && (
+                {exporting && (
                   <p className="px-2 py-1 text-[10px] text-muted-foreground">
-                    {exporting ? `Exporting .${exporting}…` : "PDF requires a compile first."}
+                    {`Exporting .${exporting}…`}
                   </p>
                 )}
               </div>

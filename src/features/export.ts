@@ -1,11 +1,12 @@
 import { save } from "@tauri-apps/plugin-dialog";
-import { exportPdf } from "@/lib/tauri";
+import { exportPdf, revealInDir } from "@/lib/tauri";
 import { useFilesStore } from "@/store/files";
 import { useCompileStore } from "@/store/compile";
+import { notifyError, toast } from "@/lib/toast";
 
 /** Open a save dialog and write the compiled PDF to the chosen path. */
 export async function exportCurrentPdf(): Promise<void> {
-  const { projectId, mainDoc, projectName } = useFilesStore.getState();
+  const { projectId, projectName } = useFilesStore.getState();
   const { pdfBytes } = useCompileStore.getState();
   if (!projectId || !pdfBytes) return;
   const name = (projectName || "document").replace(/[^\w.-]+/g, "_");
@@ -14,5 +15,13 @@ export async function exportCurrentPdf(): Promise<void> {
     filters: [{ name: "PDF", extensions: ["pdf"] }],
   });
   if (!dest) return;
-  await exportPdf(projectId, mainDoc, dest);
+  try {
+    await exportPdf(projectId, dest);
+    toast.success(`PDF saved to ${dest}`, {
+      label: "View",
+      onClick: () => void revealInDir(dest),
+    });
+  } catch (e) {
+    notifyError("export pdf", e, "Couldn't save the PDF.");
+  }
 }
