@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DevContextMenu } from "@/components/layout/DevContextMenu";
+import { UpdateNotice } from "@/components/layout/UpdateNotice";
 import { Toaster } from "@/components/ui/toaster";
 import { appendAppLog } from "@/lib/tauri";
 import "@/styles/globals.css";
@@ -25,6 +26,7 @@ createRoot(document.getElementById("root")!).render(
     <ErrorBoundary>
       <App />
       <Toaster />
+      <UpdateNotice />
       <DevContextMenu />
     </ErrorBoundary>
   </StrictMode>

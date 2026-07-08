@@ -5,11 +5,23 @@ import { open } from "@tauri-apps/plugin-shell";
 import { AlertTriangle, ArrowUpCircle, CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
-import { findUpdate, installUpdate } from "@/lib/updater";
+import { installUpdate, runUpdateCheck } from "@/lib/updater";
 import { logError } from "@/lib/log";
+import { useUpdatesStore } from "@/store/updates";
 import { cn } from "@/lib/utils";
 
 const RELEASES_URL = "https://github.com/prajwal-svm/OpenLeaf/releases";
+
+/** Compact "3m ago" style relative time for the last-check indicator. */
+function relativeTime(t: number): string {
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
 
 /**
  * Inline update checker used in the Help & About surfaces. Renders every state
@@ -32,16 +44,19 @@ export function UpdateChecker({ className }: { className?: string }) {
   // render an "unsupported" note instead of a misleading "up to date".
   const [supported] = useState(isTauri);
   const [state, setState] = useState<State>({ kind: "idle" });
+  // Surfaces a silent startup-check failure (recorded by runUpdateCheck).
+  const lastCheckFailed = useUpdatesStore((s) => s.lastCheckFailed);
+  const lastCheckAt = useUpdatesStore((s) => s.lastCheckAt);
 
   const releaseNotes = () => void open(RELEASES_URL);
 
   const check = async () => {
     setState({ kind: "checking" });
     try {
-      const update = await findUpdate();
+      const update = await runUpdateCheck({ rethrow: true });
       setState(update ? { kind: "available", update } : { kind: "upToDate" });
-    } catch (e) {
-      await logError("updater", e);
+    } catch {
+      // runUpdateCheck already logged the error and flagged the store.
       setState({ kind: "error" });
     }
   };
@@ -68,15 +83,23 @@ export function UpdateChecker({ className }: { className?: string }) {
   return (
     <div className={cn("space-y-2", className)}>
       {(state.kind === "idle" || state.kind === "checking") && (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={check}
-          disabled={state.kind === "checking"}
-        >
-          <RefreshCw className={cn("size-3.5", state.kind === "checking" && "animate-spin")} />
-          {state.kind === "checking" ? "Checking…" : "Check for updates"}
-        </Button>
+        <div className="flex flex-col items-center gap-1.5">
+          {state.kind === "idle" && lastCheckFailed && (
+            <p className="inline-flex items-center gap-1.5 text-xs text-destructive">
+              <AlertTriangle className="size-3.5" />
+              Last automatic check failed{lastCheckAt ? ` · ${relativeTime(lastCheckAt)}` : ""}.
+            </p>
+          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={check}
+            disabled={state.kind === "checking"}
+          >
+            <RefreshCw className={cn("size-3.5", state.kind === "checking" && "animate-spin")} />
+            {state.kind === "checking" ? "Checking…" : "Check for updates"}
+          </Button>
+        </div>
       )}
 
       {state.kind === "upToDate" && (
