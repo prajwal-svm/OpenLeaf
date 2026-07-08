@@ -28,7 +28,7 @@ What OpenLeaf can do. All of it runs on your machine.
 
 - Library home lists all projects with thumbnails, last-edited time, and export history.
 - Templates: Blank, One-Page Resume, and IEEE Paper.
-- File tree: create, rename, delete, duplicate, drag-drop, upload, and pick the main document.
+- Source tree: create, rename, delete, duplicate, drag-drop, upload, and pick the main document.
 - Multi-file support for `\input`, images (PNG/JPG/PDF/EPS), `.bib`, and editor tabs.
 - Autosave writes your changes to disk shortly after you stop typing.
 
@@ -53,6 +53,8 @@ A chat assistant that can actually _do_ things to your project:
 - Read and write files, find-and-replace, create, rename, and delete.
 - Compile, read the log, and extract PDF text to verify output.
 - Search across all projects, set the main doc, and toggle the theme.
+- Every file-changing edit pauses for approval with a red/green diff preview, and the decision stays visible in the chat.
+- Add your own custom instructions, sandboxed so they cannot reveal or override the built-in prompt.
 
 Bring any provider: OpenAI, Anthropic, Groq, OpenRouter, DeepSeek, Mistral, xAI, Z.AI, or run locally with Ollama. See [AI Assistant](ai-assistant.md).
 

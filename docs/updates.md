@@ -17,6 +17,10 @@ manually from **About → Check for updates**.
    against the public key embedded in `tauri.conf.json`. An unsigned or
    tampered artifact is rejected.
 
+The "update available" prompt renders the release notes (the release body from
+`latest.json`) as formatted markdown, so headings, lists, and links from the
+GitHub Release show through.
+
 ## One-time maintainer setup (required)
 
 The signing **key pair** was generated already. The **public** key is committed

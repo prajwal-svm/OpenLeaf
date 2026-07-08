@@ -5,6 +5,38 @@ All notable changes to OpenLeaf are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Diff-preview approval for agent edits** - when the assistant proposes a
+  `write_file`, `replace_in_file`, or `create_file` change, the approval prompt
+  now shows a real red/green diff of exactly what will change instead of a
+  one-line summary. Approve or reject decisions leave a persistent trace in the
+  chat (an Approved / Rejected badge on the tool step).
+- **Custom AI instructions** - Settings → AI Assistant has a field for your own
+  system prompt. It is sandboxed inside our prompt as untrusted preferences, so
+  it tunes the assistant's behaviour without being able to override safety, the
+  available tools, or reveal the built-in prompt.
+- **Inline project rename** - click the project title in the top bar to rename
+  it in place, with Save (Enter) and Cancel (Esc); clicking away cancels.
+- **Developer context menu** - during `tauri dev`, right-clicking anywhere
+  offers Refresh App and Inspect. It is stripped from production builds.
+
+### Changed
+
+- **Release notes render as markdown** - the in-app update prompt now formats
+  release notes (headings, lists, links, code) instead of showing raw markdown.
+- **Friendlier AI assistant** - the assistant now has a warmer personality, asks
+  clarifying questions, and never uses em dashes.
+- **AI provider settings collapse** - each provider is an accordion, and the
+  active provider badge sits on the right.
+- **Compile opens split view** - compiling while the PDF pane is closed now
+  switches to split view so the result is visible.
+- **Renamed panels** - "File Tree" is now "Source Tree" and "Editor View" is now
+  "Source View".
+- **No em dashes** - removed em dashes from all user-facing copy and AI output.
+
 ## [0.1.1]
 
 ### Fixed
@@ -98,5 +130,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compilation, SyncTeX, Git integration, GitHub sync, and bring-your-own-key AI
   assistance.
 
-[Unreleased]: https://github.com/prajwal-svm/OpenLeaf/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/prajwal-svm/OpenLeaf/compare/v0.1.1...HEAD
 [0.1.0]: https://github.com/prajwal-svm/OpenLeaf/releases/tag/v0.1.0

@@ -29,12 +29,18 @@ If you don't want any data leaving your machine, use Ollama.
 3. The host is `http://localhost:11434` by default. Save it.
 4. Choose the model you pulled. The assistant now runs fully offline.
 
+Each provider is a collapsible card, so the section stays tidy when you have several connected.
+
 ## Switching providers and models
 
-- The active provider has a blue badge. Saving any provider's key makes it active.
+- The active provider is marked with a badge on the right of its card. Saving any provider's key makes it active.
 - Change the model from the dropdown on the active card.
 - If you have multiple keys, use **Activate** on any saved card to switch.
 - Click the trash icon on a card to delete that key. Deleting the active key disables AI access until you connect another.
+
+## Custom instructions
+
+Settings → AI Assistant has a **Custom instructions** field for your own system prompt: a house style, a preferred tone, conventions to follow. It is layered into the assistant's behaviour as your personal preferences. It is sandboxed, so it cannot override the assistant's safety rules or the available tools, and it cannot reveal the built-in prompt.
 
 ## What it can do
 
@@ -55,6 +61,10 @@ The assistant supports these tools:
 | `get_pdf_text` | Extract text from the rendered PDF |
 | `set_main_doc` | Set the main document |
 | `toggle_theme` | Toggle light/dark mode |
+
+## Approving edits
+
+Read-only tools (read, list, search, compile, get log, get PDF text) run on their own. Anything that changes a file pauses for your approval first. The approval prompt shows a real red/green diff of exactly what will change, so you can see the edit before it touches disk. Approve or reject it, and the decision stays visible in the chat as an Approved or Rejected badge on that step.
 
 ## Tips
 
