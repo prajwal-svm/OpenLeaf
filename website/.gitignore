@@ -1,0 +1,9 @@
+# build output
+dist/
+.astro/
+
+# deps
+node_modules/
+
+# doc pages generated from ../docs by scripts/sync-docs.mjs (index.mdx is committed)
+src/content/docs/*.md

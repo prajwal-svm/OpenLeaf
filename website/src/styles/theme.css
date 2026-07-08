@@ -1,0 +1,23 @@
+/*
+ * Match the OpenLeaf app: neutral dark/light grounds (Starlight's defaults are
+ * already near-black / white like the app) with the app's blue primary as the
+ * accent. The green leaf mark carries the brand; blue carries interaction,
+ * exactly as in the app.
+ */
+:root {
+  --sl-color-accent-low: #172554;
+  --sl-color-accent: #2563eb;
+  --sl-color-accent-high: #bfdbfe;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #dbeafe;
+  --sl-color-accent: #2563eb;
+  --sl-color-accent-high: #172554;
+}
+
+/* Give the hero leaf a little room and keep the wordmark tight, like the app. */
+.site-title {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}

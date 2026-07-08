@@ -1,0 +1,17 @@
+{
+  "name": "openleaf-website",
+  "type": "module",
+  "private": true,
+  "description": "Documentation site for OpenLeaf, built with Astro Starlight from the repo's docs/ markdown.",
+  "scripts": {
+    "sync": "node scripts/sync-docs.mjs",
+    "dev": "node scripts/sync-docs.mjs && astro dev",
+    "build": "node scripts/sync-docs.mjs && astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.34.0",
+    "astro": "^5.6.0",
+    "sharp": "^0.33.5"
+  }
+}
