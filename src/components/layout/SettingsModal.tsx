@@ -1411,28 +1411,30 @@ function HelpSection() {
         <UpdateChecker className="mt-3" />
       </div>
 
-      <div className="space-y-1">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Author</p>
-        <button
-          onClick={ext(AUTHOR_URL)}
-          className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-accent"
-        >
-          <Globe className="size-4 text-muted-foreground" />
-          <span className="flex-1">Prajwal Murthy</span>
-          <ExternalLink className="size-3.5 text-muted-foreground" />
-        </button>
-      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Author</p>
+          <button
+            onClick={ext(AUTHOR_URL)}
+            className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-accent"
+          >
+            <Globe className="size-4 shrink-0 text-muted-foreground" />
+            <span className="flex-1 truncate">Prajwal Murthy</span>
+            <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+          </button>
+        </div>
 
-      <div className="space-y-1">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Project</p>
-        <button
-          onClick={ext(REPO_URL)}
-          className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-accent"
-        >
-          <Github className="size-4 text-muted-foreground" />
-          <span className="flex-1 truncate">Open Source - GitHub</span>
-          <ExternalLink className="size-3.5 text-muted-foreground" />
-        </button>
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Project</p>
+          <button
+            onClick={ext(REPO_URL)}
+            className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-accent"
+          >
+            <Github className="size-4 shrink-0 text-muted-foreground" />
+            <span className="flex-1 truncate">GitHub</span>
+            <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2 pt-1">

@@ -50,28 +50,30 @@ export function AboutModal({ open: isOpen, onClose }: { open: boolean; onClose: 
           <UpdateChecker className="mt-3 flex flex-col items-center" />
         </div>
 
-        <div className="mt-5 space-y-1 border-t pt-4">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Author</p>
-          <button
-            onClick={ext(AUTHOR_URL)}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
-          >
-            <Globe className="size-4 text-muted-foreground" />
-            <span className="flex-1">Prajwal Murthy</span>
-            <ExternalLink className="size-3.5 text-muted-foreground" />
-          </button>
-        </div>
+        <div className="mt-5 grid grid-cols-2 gap-3 border-t pt-4">
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Author</p>
+            <button
+              onClick={ext(AUTHOR_URL)}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              <Globe className="size-4 shrink-0 text-muted-foreground" />
+              <span className="flex-1 truncate">Prajwal Murthy</span>
+              <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+            </button>
+          </div>
 
-        <div className="mt-3 space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Project</p>
-          <button
-            onClick={ext(REPO)}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
-          >
-            <Github className="size-4 text-muted-foreground" />
-            <span className="flex-1 truncate">Open Source - GitHub</span>
-            <ExternalLink className="size-3.5 text-muted-foreground" />
-          </button>
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Project</p>
+            <button
+              onClick={ext(REPO)}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              <Github className="size-4 shrink-0 text-muted-foreground" />
+              <span className="flex-1 truncate">GitHub</span>
+              <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+            </button>
+          </div>
         </div>
 
         <div className="mt-5 flex gap-2">
