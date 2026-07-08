@@ -1123,12 +1123,17 @@ fn find_pandoc() -> Option<String> {
     if works("pandoc") {
         return Some("pandoc".to_string());
     }
-    let mut candidates: Vec<PathBuf> = vec![
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    // Our own on-demand download location wins first (guaranteed compatible).
+    if let Ok(root) = paths::openleaf_root() {
+        candidates.push(root.join("bin").join(if cfg!(windows) { "pandoc.exe" } else { "pandoc" }));
+    }
+    candidates.extend([
         PathBuf::from("/opt/homebrew/bin/pandoc"),
         PathBuf::from("/usr/local/bin/pandoc"),
         PathBuf::from("/usr/bin/pandoc"),
         PathBuf::from("/opt/homebrew/anaconda3/bin/pandoc"),
-    ];
+    ]);
     if let Ok(home) = std::env::var("HOME") {
         for sub in [
             "anaconda3/bin/pandoc",
@@ -1180,6 +1185,132 @@ pub fn export_document(
         return Err(format!("pandoc failed: {}", err.trim()));
     }
     Ok(())
+}
+
+/// Whether a usable pandoc is already available (system or our cache).
+#[tauri::command]
+pub fn has_pandoc() -> bool {
+    find_pandoc().is_some()
+}
+
+#[derive(Clone, serde::Serialize)]
+struct PandocProgress {
+    received: u64,
+    total: Option<u64>,
+}
+
+/// The pandoc release asset URL for this platform, and whether it's a tar.gz.
+fn pandoc_asset() -> Result<(String, bool), String> {
+    const V: &str = "3.5";
+    let base = format!("https://github.com/jgm/pandoc/releases/download/{V}");
+    let arch = std::env::consts::ARCH;
+    if cfg!(target_os = "macos") {
+        let a = if arch == "aarch64" { "arm64" } else { "x86_64" };
+        Ok((format!("{base}/pandoc-{V}-{a}-macOS.zip"), false))
+    } else if cfg!(target_os = "windows") {
+        Ok((format!("{base}/pandoc-{V}-windows-x86_64.zip"), false))
+    } else if cfg!(target_os = "linux") {
+        let a = if arch == "aarch64" { "arm64" } else { "amd64" };
+        Ok((format!("{base}/pandoc-{V}-linux-{a}.tar.gz"), true))
+    } else {
+        Err("Automatic pandoc download isn't supported on this platform.".to_string())
+    }
+}
+
+/// Extract the `pandoc` binary from a downloaded archive to `dest`.
+fn extract_pandoc(
+    archive: &std::path::Path,
+    is_targz: bool,
+    dest: &std::path::Path,
+) -> Result<(), String> {
+    use std::io::{Read, Write};
+    let want = if cfg!(windows) { "bin/pandoc.exe" } else { "bin/pandoc" };
+    let file = std::fs::File::open(archive).map_err(|e| e.to_string())?;
+    if is_targz {
+        let gz = flate2::read::GzDecoder::new(file);
+        let mut ar = tar::Archive::new(gz);
+        for entry in ar.entries().map_err(|e| e.to_string())? {
+            let mut entry = entry.map_err(|e| e.to_string())?;
+            let path = entry
+                .path()
+                .map_err(|e| e.to_string())?
+                .to_string_lossy()
+                .to_string();
+            if path.ends_with(want) {
+                let mut out = std::fs::File::create(dest).map_err(|e| e.to_string())?;
+                std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
+                return Ok(());
+            }
+        }
+    } else {
+        let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+        for i in 0..zip.len() {
+            let mut f = zip.by_index(i).map_err(|e| e.to_string())?;
+            let name = f.name().to_string();
+            if name.ends_with(want) {
+                let mut buf = Vec::new();
+                f.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+                let mut out = std::fs::File::create(dest).map_err(|e| e.to_string())?;
+                out.write_all(&buf).map_err(|e| e.to_string())?;
+                return Ok(());
+            }
+        }
+    }
+    Err("pandoc binary not found in the downloaded archive.".to_string())
+}
+
+/// Download pandoc on demand and cache it under `~/.openleaf/bin`. Emits
+/// `pandoc-download-progress` events; returns the path to the ready binary.
+#[tauri::command]
+pub async fn download_pandoc(app: tauri::AppHandle) -> Result<String, String> {
+    use futures_util::StreamExt;
+    use std::io::Write as _;
+    use tauri::Emitter;
+
+    if let Some(p) = find_pandoc() {
+        return Ok(p);
+    }
+    let (url, is_targz) = pandoc_asset()?;
+    let bin_dir = paths::openleaf_root()?.join("bin");
+    std::fs::create_dir_all(&bin_dir).map_err(|e| e.to_string())?;
+    let tmp = bin_dir.join("pandoc-download.tmp");
+
+    let resp = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("download failed: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("download failed: {e}"))?;
+    let total = resp.content_length();
+    let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+    let mut stream = resp.bytes_stream();
+    let mut received: u64 = 0;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("download interrupted: {e}"))?;
+        received += chunk.len() as u64;
+        file.write_all(&chunk).map_err(|e| e.to_string())?;
+        let _ = app.emit("pandoc-download-progress", PandocProgress { received, total });
+    }
+    file.flush().map_err(|e| e.to_string())?;
+    drop(file);
+
+    let dest = bin_dir.join(if cfg!(windows) { "pandoc.exe" } else { "pandoc" });
+    let extracted = extract_pandoc(&tmp, is_targz, &dest);
+    let _ = std::fs::remove_file(&tmp);
+    extracted?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755));
+    }
+    if !std::process::Command::new(&dest)
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+    {
+        return Err("Downloaded pandoc, but it failed to run.".to_string());
+    }
+    Ok(dest.to_string_lossy().to_string())
 }
 
 #[tauri::command]

@@ -9,6 +9,8 @@ export const toast = {
     useToastStore.getState().push("success", message, action, sticky),
   info: (message: string, action?: ToastAction, sticky?: boolean) =>
     useToastStore.getState().push("info", message, action, sticky),
+  update: (id: number, message: string) => useToastStore.getState().update(id, message),
+  dismiss: (id: number) => useToastStore.getState().dismiss(id),
 };
 
 /**

@@ -29,11 +29,15 @@ serde_json = "1"
 base64 = "0.22"
 flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
+# Extracting the Linux pandoc tarball on-demand (macOS/Windows ship a zip).
+tar = "0.4"
+# Streaming the pandoc download so we can report progress.
+futures-util = "0.3"
 # Async HTTP client for the GitHub OAuth device flow, which can't be called
 # from the webview (CORS). The API endpoints on api.github.com are still called
 # directly from the frontend; only the OAuth endpoints run here. Commands are
 # async + single-shot so they never block the webview thread.
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

@@ -20,6 +20,8 @@ interface ToastState {
   toasts: Toast[];
   /** Show a toast; returns its id. */
   push: (kind: ToastKind, message: string, action?: ToastAction, sticky?: boolean) => number;
+  /** Update an existing toast's message (e.g. live progress). No-op if gone. */
+  update: (id: number, message: string) => void;
   dismiss: (id: number) => void;
 }
 
@@ -38,5 +40,7 @@ export const useToastStore = create<ToastState>((set) => ({
     set((s) => ({ toasts: [...s.toasts, { id, kind, message, action, sticky }].slice(-4) }));
     return id;
   },
+  update: (id, message) =>
+    set((s) => ({ toasts: s.toasts.map((t) => (t.id === id ? { ...t, message } : t)) })),
   dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));

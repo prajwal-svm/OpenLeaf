@@ -132,6 +132,12 @@ export const revealInDir = (path: string) =>
 export const exportDocument = (projectId: string, mainDoc: string, format: string, dest: string) =>
   invoke<void>("export_document", { projectId, mainDoc, format, dest });
 
+/** Whether a usable pandoc is available (system install or our on-demand cache). */
+export const hasPandoc = () => invoke<boolean>("has_pandoc");
+
+/** Download pandoc into ~/.openleaf/bin; emits `pandoc-download-progress` events. */
+export const downloadPandoc = () => invoke<string>("download_pandoc");
+
 export interface SearchHit {
   project_id: string;
   project_name: string;

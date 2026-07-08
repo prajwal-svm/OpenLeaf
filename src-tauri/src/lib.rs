@@ -58,6 +58,8 @@ pub fn run() {
             project::read_file_base64,
             project::append_app_log,
             project::read_app_log,
+            project::has_pandoc,
+            project::download_pandoc,
             project::set_main_doc,
             project::get_project,
             project::list_projects,

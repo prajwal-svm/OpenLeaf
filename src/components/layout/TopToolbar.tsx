@@ -26,6 +26,7 @@ import { useFilesStore } from "@/store/files";
 import { useCompileStore } from "@/store/compile";
 import { useSettingsStore, type ViewMode } from "@/store/settings";
 import { exportCurrentPdf } from "@/features/export";
+import { ensurePandoc } from "@/features/pandoc";
 import {
   downloadProjectZip,
   duplicateProject,
@@ -140,6 +141,8 @@ export function TopToolbar() {
     if (!dest) return;
     setExporting(format);
     try {
+      // Word/HTML/Markdown need pandoc — fetch it on demand the first time.
+      if (!(await ensurePandoc())) return;
       await exportDocument(projectId, useFilesStore.getState().mainDoc || "main.tex", format, dest);
       toast.success(
         `Export ${FMT_LABEL[format] ?? format} complete`,
