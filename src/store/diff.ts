@@ -5,19 +5,27 @@ export type DiffMode = "split" | "unified";
 
 export interface OpenDiff {
   path: string;
-  /** "working" = worktree vs index (editable later); "staged" = index vs HEAD (read-only). */
+  /** "working" = worktree vs index (editable); "staged" = index vs HEAD (read-only). */
   side: DiffSide;
 }
 
+/** Stable identity for a diff tab (a file can be open as both a working and a staged diff). */
+export function diffKey(d: OpenDiff): string {
+  return `${d.side}:${d.path}`;
+}
+
 interface DiffState {
-  diff: OpenDiff | null;
-  /** Whether the diff (vs. the active file) is the focused view in the editor. */
-  active: boolean;
+  /** Open diff tabs, in the order they were opened. */
+  diffs: OpenDiff[];
+  /** Key of the focused diff, or null when a file tab is the focused view. */
+  activeKey: string | null;
   mode: DiffMode;
   openDiff: (path: string, side: DiffSide) => void;
-  closeDiff: () => void;
-  /** Focus/unfocus the diff without closing it (switching to/from a file tab). */
-  setDiffActive: (active: boolean) => void;
+  closeDiff: (key: string) => void;
+  /** Focus a diff tab (without touching the open file tabs). */
+  setActiveDiff: (key: string) => void;
+  /** Unfocus any diff so a file tab becomes the active view. */
+  clearActiveDiff: () => void;
   setMode: (mode: DiffMode) => void;
 }
 
@@ -31,14 +39,27 @@ function loadMode(): DiffMode {
   }
 }
 
-/** The git diff currently shown in the editor area (replaces the old modal). */
+/** Git diffs open in the editor area as tabs (replaces the old modal). */
 export const useDiffStore = create<DiffState>((set) => ({
-  diff: null,
-  active: false,
+  diffs: [],
+  activeKey: null,
   mode: loadMode(),
-  openDiff: (path, side) => set({ diff: { path, side }, active: true }),
-  closeDiff: () => set({ diff: null, active: false }),
-  setDiffActive: (active) => set({ active }),
+  openDiff: (path, side) =>
+    set((s) => {
+      const key = diffKey({ path, side });
+      const exists = s.diffs.some((d) => diffKey(d) === key);
+      return {
+        diffs: exists ? s.diffs : [...s.diffs, { path, side }],
+        activeKey: key,
+      };
+    }),
+  closeDiff: (key) =>
+    set((s) => ({
+      diffs: s.diffs.filter((d) => diffKey(d) !== key),
+      activeKey: s.activeKey === key ? null : s.activeKey,
+    })),
+  setActiveDiff: (key) => set({ activeKey: key }),
+  clearActiveDiff: () => set({ activeKey: null }),
   setMode: (mode) => {
     try {
       localStorage.setItem(MODE_KEY, mode);
@@ -48,3 +69,8 @@ export const useDiffStore = create<DiffState>((set) => ({
     set({ mode });
   },
 }));
+
+/** The currently focused diff, or null when a file tab is active. */
+export function activeDiff(s: DiffState): OpenDiff | null {
+  return s.diffs.find((d) => diffKey(d) === s.activeKey) ?? null;
+}

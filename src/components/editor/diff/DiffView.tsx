@@ -6,7 +6,7 @@ import { ChevronDown, ChevronUp, Columns2, GitCompare, Rows3 } from "lucide-reac
 import { editorTheme } from "../cm/theme";
 import { languageForPath } from "../cm/languages";
 import { gitShow, readFileContent, writeFileContent } from "@/lib/tauri";
-import { useDiffStore } from "@/store/diff";
+import { useDiffStore, activeDiff } from "@/store/diff";
 import { useFilesStore } from "@/store/files";
 import { useGitStatusStore } from "@/store/git-status";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,7 @@ function hasNullByte(s: string): boolean {
  * editable working-tree diffs come in a later phase.
  */
 export function DiffView() {
-  const diff = useDiffStore((s) => s.diff);
+  const diff = useDiffStore(activeDiff);
   const mode = useDiffStore((s) => s.mode);
   const setMode = useDiffStore((s) => s.setMode);
   const projectId = useFilesStore((s) => s.projectId);
@@ -49,7 +49,7 @@ export function DiffView() {
   // commit). Editable working diffs update live, so we leave them alone.
   useEffect(() => {
     const onChanged = () => {
-      if (useDiffStore.getState().diff?.side === "staged") setReloadKey((k) => k + 1);
+      if (activeDiff(useDiffStore.getState())?.side === "staged") setReloadKey((k) => k + 1);
     };
     window.addEventListener("openleaf:git-changed", onChanged);
     return () => window.removeEventListener("openleaf:git-changed", onChanged);

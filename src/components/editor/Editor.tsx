@@ -7,7 +7,7 @@ import { DiffView } from "./diff/DiffView";
 import { PdfViewer } from "@/components/pdf/PdfViewer";
 import { wrapSelection } from "./cm/controller";
 import { useFilesStore } from "@/store/files";
-import { useDiffStore } from "@/store/diff";
+import { useDiffStore, diffKey } from "@/store/diff";
 import { base64ToUint8Array, readFileBase64 } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 
@@ -43,10 +43,12 @@ export function Editor() {
   const setActive = useFilesStore((s) => s.setActive);
   const closeTab = useFilesStore((s) => s.closeTab);
   const dirtyMap = useFilesStore((s) => s.files);
-  const diff = useDiffStore((s) => s.diff);
-  const diffActive = useDiffStore((s) => s.active);
-  const setDiffActive = useDiffStore((s) => s.setDiffActive);
+  const diffs = useDiffStore((s) => s.diffs);
+  const activeKey = useDiffStore((s) => s.activeKey);
+  const setActiveDiff = useDiffStore((s) => s.setActiveDiff);
+  const clearActiveDiff = useDiffStore((s) => s.clearActiveDiff);
   const closeDiff = useDiffStore((s) => s.closeDiff);
+  const diffFocused = activeKey !== null && diffs.some((d) => diffKey(d) === activeKey);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -73,19 +75,19 @@ export function Editor() {
     <div className="flex h-full flex-col bg-background">
       {/* Tabs */}
       <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b px-2">
-        {openTabs.length === 0 && (
+        {openTabs.length === 0 && diffs.length === 0 && (
           <span className="px-2 text-xs text-muted-foreground">No file open</span>
         )}
         {openTabs.map((path) => (
           <button
             key={path}
             onClick={() => {
-              setDiffActive(false);
+              clearActiveDiff();
               setActive(path);
             }}
             className={cn(
               "group flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs",
-              path === activePath && !diffActive
+              path === activePath && !diffFocused
                 ? "bg-muted text-foreground"
                 : "text-muted-foreground hover:bg-accent"
             )}
@@ -107,34 +109,38 @@ export function Editor() {
             </span>
           </button>
         ))}
-        {diff && (
-          <button
-            onClick={() => setDiffActive(true)}
-            className={cn(
-              "group flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs",
-              diffActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-accent"
-            )}
-          >
-            {basename(diff.path)}
-            <span className="text-muted-foreground">
-              ({diff.side === "staged" ? "Index" : "Working Tree"})
-            </span>
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                closeDiff();
-              }}
-              className="ml-0.5 cursor-pointer rounded p-0.5 hover:bg-accent"
+        {diffs.map((d) => {
+          const key = diffKey(d);
+          return (
+            <button
+              key={key}
+              onClick={() => setActiveDiff(key)}
+              className={cn(
+                "group flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs",
+                activeKey === key ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-accent"
+              )}
             >
-              <X className="size-3" />
-            </span>
-          </button>
-        )}
+              {basename(d.path)}
+              <span className="text-muted-foreground">
+                ({d.side === "staged" ? "Index" : "Working Tree"})
+              </span>
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeDiff(key);
+                }}
+                className="ml-0.5 cursor-pointer rounded p-0.5 hover:bg-accent"
+              >
+                <X className="size-3" />
+              </span>
+            </button>
+          );
+        })}
       </div>
       {/* Editor body */}
-      {diff && diffActive ? (
+      {diffFocused ? (
         <DiffView />
       ) : hasOpenFile ? (
         <>
