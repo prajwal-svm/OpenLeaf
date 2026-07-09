@@ -26,7 +26,8 @@ import {
   closeBrackets,
   closeBracketsKeymap,
 } from "@codemirror/autocomplete";
-import { highlightSelectionMatches, searchKeymap, search } from "@codemirror/search";
+import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
+import { vscodeSearch } from "./cm/search-panel";
 import { vim } from "@replit/codemirror-vim";
 
 import { editorTheme } from "./cm/theme";
@@ -37,6 +38,10 @@ import { spellLintExtensions, refreshEditorLints } from "./cm/spellcheck";
 import { useDictionary } from "@/lib/dictionary";
 import { mathHover } from "./cm/math-preview";
 import { createLatexLinter } from "./cm/latex-linter";
+import { createPreflightLinter } from "./cm/preflight-linter";
+import { codeIntel } from "./cm/code-intel";
+import { hoverIntel } from "./cm/hover-intel";
+import { latexFolding } from "./cm/latex-folding";
 import { inlineDiffPlugin } from "./cm/inline-ai/plugin";
 import { toggleInlineEdit } from "./cm/inline-ai/openSession";
 import { useFilesStore, useActiveContent } from "@/store/files";
@@ -92,6 +97,7 @@ export function CodeMirrorEditor() {
         highlightActiveLineGutter(),
         highlightSpecialChars(),
         foldGutter({ openText: "▾", closedText: "▸" }),
+        latexFolding(),
         drawSelection(),
         dropCursor(),
         EditorState.allowMultipleSelections.of(true),
@@ -112,9 +118,12 @@ export function CodeMirrorEditor() {
           activateOnTyping: true,
           closeOnBlur: true,
         }),
-        search({ top: true }),
+        vscodeSearch(),
         mathHover(),
         createLatexLinter(),
+        createPreflightLinter(),
+        codeIntel(),
+        hoverIntel(),
         inlineDiffPlugin,
         keymap.of([
           { key: "Mod-l", run: (v) => { toggleInlineEdit(v); return true; } },
