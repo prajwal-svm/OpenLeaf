@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 export type ViewMode = "split" | "editor" | "pdf";
-export type RailTab = "files" | "search" | "ai" | "source" | "review" | "chat";
+export type RailTab = "files" | "search" | "ai" | "source" | "review" | "chat" | "preflight" | "refs";
 
 /** Read a persisted setting (cosmetics survive restarts, like the theme). */
 function ls(k: string, fb: string): string {

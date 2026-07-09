@@ -1,0 +1,72 @@
+import { useEffect, useState } from "react";
+import { useRenameStore } from "@/store/rename";
+import { useIndexStore } from "@/store/project-index";
+import { getEditorView } from "@/components/editor/cm/controller";
+import { applyRename } from "@/lib/index/nav";
+
+/** Rename-symbol dialog: shows the impact (edits across files) and applies it. */
+export function RenameDialog() {
+  const sym = useRenameStore((s) => s.sym);
+  const close = useRenameStore((s) => s.close);
+  const index = useIndexStore((s) => s.index);
+  const [name, setName] = useState("");
+
+  useEffect(() => {
+    if (sym) setName(sym.name);
+  }, [sym]);
+
+  if (!sym) return null;
+
+  const plan = index && name && name !== sym.name ? index.renamePlan(sym, name) : null;
+  const valid = name.trim().length > 0 && name !== sym.name && !plan?.collision;
+
+  const submit = async () => {
+    const view = getEditorView();
+    close();
+    if (view && valid) await applyRename(view, sym, name.trim());
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/40 pt-[20vh]" onClick={close}>
+      <div
+        className="w-[26rem] max-w-[90vw] rounded-lg border bg-popover p-4 text-popover-foreground shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-sm font-semibold">
+          Rename <span className="font-mono">{sym.name}</span>
+        </p>
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void submit();
+            if (e.key === "Escape") close();
+          }}
+          className="mt-2 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+        />
+        <p className="mt-2 h-4 text-[11px] text-muted-foreground">
+          {plan?.collision ? (
+            <span className="text-red-500">A {sym.kind} named "{name}" already exists.</span>
+          ) : plan ? (
+            `${plan.edits.length} edit${plan.edits.length > 1 ? "s" : ""} across ${plan.fileCount} file${plan.fileCount > 1 ? "s" : ""}`
+          ) : (
+            ""
+          )}
+        </p>
+        <div className="mt-3 flex justify-end gap-2">
+          <button onClick={close} className="rounded-md border border-input px-3 py-1.5 text-xs hover:bg-accent">
+            Cancel
+          </button>
+          <button
+            onClick={() => void submit()}
+            disabled={!valid}
+            className="rounded-md bg-primary px-3 py-1.5 text-xs text-white hover:opacity-90 disabled:opacity-50"
+          >
+            Rename
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

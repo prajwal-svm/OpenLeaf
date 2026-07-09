@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Bold, Italic, Heading, List, Image, Table, Sigma, Sparkles, Tag } from "lucide-react";
+import { Bold, Italic, Heading, List, Image, Table, Sigma, Sparkles, Tag, ArrowRightToLine, SearchCode, Pencil } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/context-menu";
 import { getEditorView, insertAtCursor, wrapSelection } from "./cm/controller";
 import { openInlineEdit } from "./cm/inline-ai/openSession";
+import { goToDefinition, findReferences, startRename } from "@/lib/index/nav";
 
 interface EditorContextMenuProps {
   children: ReactNode;
@@ -32,6 +33,34 @@ export function EditorContextMenu({ children }: EditorContextMenuProps) {
         >
           <Sparkles className="mr-2 size-4" /> Ask AI…
           <span className="ml-auto text-xs text-muted-foreground">⌘L</span>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onClick={() => {
+            const view = getEditorView();
+            if (view) goToDefinition(view);
+          }}
+        >
+          <ArrowRightToLine className="mr-2 size-4" /> Go to definition
+          <span className="ml-auto text-xs text-muted-foreground">F12</span>
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => {
+            const view = getEditorView();
+            if (view) findReferences(view);
+          }}
+        >
+          <SearchCode className="mr-2 size-4" /> Find references
+          <span className="ml-auto text-xs text-muted-foreground">⇧F12</span>
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => {
+            const view = getEditorView();
+            if (view) startRename(view);
+          }}
+        >
+          <Pencil className="mr-2 size-4" /> Rename symbol
+          <span className="ml-auto text-xs text-muted-foreground">F2</span>
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={() => wrapSelection("\\textbf{", "}")}>

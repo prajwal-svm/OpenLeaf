@@ -1,15 +1,19 @@
 import type { ReactNode } from "react";
 import {
+  ArrowRightToLine,
   Bold,
+  Braces,
   ChevronDown,
   Image as ImageIcon,
   Italic,
   Link as LinkIcon,
   List,
   ListOrdered,
+  Pencil,
   Quote,
   Redo2,
   Search,
+  SearchCode,
   Table as TableIcon,
   Tag,
   Type,
@@ -21,10 +25,18 @@ import {
   editorFind,
   editorRedo,
   editorUndo,
+  getEditorView,
   insertAtCursor,
   wrapSelection,
 } from "./cm/controller";
+import { goToDefinition, findReferences, startRename } from "@/lib/index/nav";
 import { cn } from "@/lib/utils";
+
+/** Run a code-intelligence action against the active editor view. */
+function withView(fn: (v: import("@codemirror/view").EditorView) => void) {
+  const v = getEditorView();
+  if (v) fn(v);
+}
 
 function Divider() {
   return <span className="mx-1 h-5 w-px shrink-0 bg-border" />;
@@ -149,6 +161,32 @@ export function EditorToolbar() {
           onClick={() => insertAtCursor("\\begin{enumerate}\n  \\item \n\\end{enumerate}\n")}
         >
           <ListOrdered className="size-4" /> Numbered list
+        </PopoverItem>
+      </Popover>
+
+      <Divider />
+
+      {/* Code intelligence (kept as one compact dropdown so it never crowds the bar) */}
+      <Popover
+        trigger={
+          <span className="flex items-center gap-0.5">
+            <Braces className="size-4" />
+            <ChevronDown className="size-3" />
+          </span>
+        }
+      >
+        <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Code</div>
+        <PopoverItem onClick={() => withView(goToDefinition)}>
+          <ArrowRightToLine className="size-4" /> Go to definition
+          <span className="ml-auto text-[10px] text-muted-foreground">F12</span>
+        </PopoverItem>
+        <PopoverItem onClick={() => withView(findReferences)}>
+          <SearchCode className="size-4" /> Find references
+          <span className="ml-auto text-[10px] text-muted-foreground">⇧F12</span>
+        </PopoverItem>
+        <PopoverItem onClick={() => withView(startRename)}>
+          <Pencil className="size-4" /> Rename symbol
+          <span className="ml-auto text-[10px] text-muted-foreground">F2</span>
         </PopoverItem>
       </Popover>
 

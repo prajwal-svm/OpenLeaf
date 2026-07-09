@@ -9,6 +9,8 @@ import { FileTree } from "@/components/files/FileTree";
 import { Outline } from "@/components/layout/Outline";
 import { SourceControl } from "@/components/layout/SourceControl";
 import { ChatPanel } from "@/components/ai/ChatPanel";
+import { PreflightPanel } from "@/components/preflight/PreflightPanel";
+import { ReferencesPanel } from "@/components/layout/ReferencesPanel";
 import { cn } from "@/lib/utils";
 
 function basename(p: string) {
@@ -116,6 +118,8 @@ export function Sidebar() {
   const railTab = useSettingsStore((s) => s.railTab);
   if (railTab === "search") return <ProjectSearch />;
   if (railTab === "source") return <SourceControl />;
+  if (railTab === "preflight") return <PreflightPanel />;
+  if (railTab === "refs") return <ReferencesPanel />;
   if (railTab === "ai") return <ChatPanel />;
   if (railTab === "review") return <Placeholder title="Review" />;
   if (railTab === "chat") return <ChatPanel />;

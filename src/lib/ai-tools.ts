@@ -11,6 +11,7 @@ import {
 } from "@/lib/tauri";
 import { useFilesStore } from "@/store/files";
 import { useCompileStore } from "@/store/compile";
+import { useIndexStore } from "@/store/project-index";
 import { extractPdfText } from "@/lib/pdf-text";
 
 const pid = () => useFilesStore.getState().projectId;
@@ -401,6 +402,38 @@ export function createOpenLeafTools(opts?: { confirm?: ConfirmFn }) {
         } catch (e) {
           return { error: String(e) };
         }
+      },
+    },
+
+    project_map: {
+      description:
+        "Get a structural map of the whole project: the section outline, labels, citation keys, macros, theorem and glossary names, the \\input file graph, and any unresolved references or citations. Call this to understand the whole document before making cross-cutting edits.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+      execute: async () => {
+        const idx = useIndexStore.getState();
+        if (!idx.index) await idx.rebuildFromDisk();
+        const index = useIndexStore.getState().index;
+        if (!index) return { error: "No project open" };
+        const of = (kind: string) => index.defs.filter((d) => d.kind === kind);
+        return {
+          files: of("file").map((d) => d.name),
+          sections: of("section").map((d) => ({ title: d.name, level: d.level, file: d.file, line: d.line })),
+          labels: of("label").map((d) => d.name),
+          bibKeys: of("bibentry").map((d) => d.name),
+          macros: of("macro").map((d) => d.name),
+          theorems: of("theorem").map((d) => d.name),
+          glossary: of("glossary").map((d) => d.name),
+          inputGraph: index.uses
+            .filter((u) => u.kind === "inputedge")
+            .map((u) => ({ from: u.file, to: u.target })),
+          unresolvedRefs: [...new Set(index.uses.filter((u) => u.kind === "ref" && !index.definitionFor(u)).map((u) => u.name))],
+          unresolvedCites: [...new Set(index.uses.filter((u) => u.kind === "cite" && !index.definitionFor(u)).map((u) => u.name))],
+        };
       },
     },
   };

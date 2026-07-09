@@ -4,6 +4,8 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DevContextMenu } from "@/components/layout/DevContextMenu";
+import { IndexKeeper } from "@/components/editor/IndexKeeper";
+import { RenameDialog } from "@/components/layout/RenameDialog";
 import { UpdateWindow } from "@/components/layout/UpdateWindow";
 import { ThemeProvider } from "@/lib/theme";
 import { Toaster } from "@/components/ui/toaster";
@@ -47,6 +49,8 @@ createRoot(document.getElementById("root")!).render(
           <App />
           <Toaster />
           <DevContextMenu />
+          <IndexKeeper />
+          <RenameDialog />
         </>
       )}
     </ErrorBoundary>

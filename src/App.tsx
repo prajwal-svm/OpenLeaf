@@ -15,6 +15,7 @@ import { HistoryModal } from "@/components/editor/HistoryModal";
 import { HotkeysModal } from "@/components/editor/HotkeysModal";
 import { useFilesStore, useActiveContent } from "@/store/files";
 import { useCompileStore } from "@/store/compile";
+import { usePreflightStore } from "@/store/preflight";
 import { useSettingsStore } from "@/store/settings";
 import { useGitStatusStore } from "@/store/git-status";
 import { useGithubStore } from "@/store/github";
@@ -163,6 +164,14 @@ export default function App() {
     if (projectId) setViewMode("split");
     // Clear the previous project's compile output so a stale PDF never shows.
     useCompileStore.getState().reset();
+    // Preflight results belong to the previous project; reset them too.
+    usePreflightStore.getState().reset();
+    // Always open a project on the source-tree view.
+    if (projectId) {
+      const s = useSettingsStore.getState();
+      s.setRailTab("files");
+      if (!s.showTree) s.toggleTree();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
