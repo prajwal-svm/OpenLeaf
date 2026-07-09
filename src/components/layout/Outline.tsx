@@ -1,121 +1,31 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, FileText, List } from "lucide-react";
-import { useActiveContent, useFilesStore } from "@/store/files";
+import { useFilesStore } from "@/store/files";
+import { useIndexStore } from "@/store/project-index";
+import { outlineFromIndex } from "@/lib/index/outline";
 import { gotoLine } from "@/components/editor/cm/controller";
-import { readFileContent } from "@/lib/tauri";
 
-interface OutlineItem {
-  level: number;
-  title: string;
-  line: number;
-  /** Project-relative file this entry lives in. */
-  file: string;
-  /** A structural heading, or an included file with no headings of its own. */
-  kind: "section" | "file";
-}
-
-const PATTERNS: [number, RegExp][] = [
-  [0, /^\s*\\part\*?\s*\{([^}]*)\}/],
-  [1, /^\s*\\chapter\*?\s*\{([^}]*)\}/],
-  [2, /^\s*\\section\*?\s*\{([^}]*)\}/],
-  [3, /^\s*\\subsection\*?\s*\{([^}]*)\}/],
-  [4, /^\s*\\subsubsection\*?\s*\{([^}]*)\}/],
-  [5, /^\s*\\paragraph\*?\s*\{([^}]*)\}/],
-];
-
-const INPUT_RE = /^\s*\\(?:input|include)\s*\{([^}]*)\}/;
-
-function dirname(p: string): string {
-  const i = p.lastIndexOf("/");
-  return i >= 0 ? p.slice(0, i) : "";
-}
 function basename(p: string): string {
   const i = p.lastIndexOf("/");
   return i >= 0 ? p.slice(i + 1) : p;
 }
-function joinInput(dir: string, rel: string): string {
-  let r = rel.replace(/^\.\//, "").trim();
-  if (r.startsWith("/")) r = r.slice(1);
-  const resolved = dir ? `${dir}/${r}` : r;
-  return /\.[^/\\]+$/.test(resolved) ? resolved : `${resolved}.tex`;
-}
 
 /**
- * Build a combined outline by walking `\input`/`\include` from the active file
- * into the included files (depth-limited, cycle-guarded). Sections appear in
- * document order; an include with no headings is listed as a file entry so the
- * pane is never mysteriously empty.
+ * Document outline, derived from the shared project index (sections + the
+ * `\input` graph). No separate parsing or file IO of its own; it stays in sync
+ * with everything else that reads the index.
  */
-async function buildOutline(
-  projectId: string,
-  activeFile: string,
-  content: string
-): Promise<OutlineItem[]> {
-  const out: OutlineItem[] = [];
-  const visited = new Set<string>();
-
-  const walk = async (file: string, text: string, depth: number) => {
-    if (depth > 4 || visited.has(file)) return;
-    visited.add(file);
-    const dir = dirname(file);
-    const lines = text.split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      const ln = lines[i];
-      if (ln.trimStart().startsWith("%")) continue;
-      for (const [level, re] of PATTERNS) {
-        const m = ln.match(re);
-        if (m) {
-          out.push({ level, title: m[1].trim(), line: i + 1, file, kind: "section" });
-          break;
-        }
-      }
-      const im = ln.match(INPUT_RE);
-      if (im) {
-        const target = joinInput(dir, im[1]);
-        try {
-          const sub = await readFileContent(projectId, target);
-          const before = out.length;
-          await walk(target, sub, depth + 1);
-          if (out.length === before) {
-            // Included file has no headings - surface it as a clickable entry.
-            out.push({ level: 2, title: basename(target), line: 1, file: target, kind: "file" });
-          }
-        } catch {
-          /* missing/unreadable include - ignore */
-        }
-      }
-    }
-  };
-
-  await walk(activeFile, content, 0);
-  return out;
-}
-
 export function Outline() {
-  const content = useActiveContent();
-  const projectId = useFilesStore((s) => s.projectId);
+  const index = useIndexStore((s) => s.index);
   const activePath = useFilesStore((s) => s.activePath);
   const [collapsed, setCollapsed] = useState(false);
-  const [items, setItems] = useState<OutlineItem[]>([]);
 
-  useEffect(() => {
-    if (!projectId || !activePath) {
-      setItems([]);
-      return;
-    }
-    let cancelled = false;
-    // Debounce so typing in the body doesn't re-walk includes on every keystroke.
-    const t = setTimeout(async () => {
-      const result = await buildOutline(projectId, activePath, content);
-      if (!cancelled) setItems(result);
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [projectId, activePath, content]);
+  const items = useMemo(
+    () => (index && activePath ? outlineFromIndex(index, activePath) : []),
+    [index, activePath],
+  );
 
-  const jump = (item: OutlineItem) => {
+  const jump = (item: { file: string; line: number }) => {
     const store = useFilesStore.getState();
     if (item.file && item.file !== store.activePath) {
       void store.openFile(item.file).then(() => {
