@@ -34,6 +34,20 @@ export function gotoLine(line: number) {
   v.focus();
 }
 
+/** Select a document offset range, scroll it to center, and focus. */
+export function gotoRange(from: number, to: number) {
+  const v = getEditorView();
+  if (!v) return;
+  const max = v.state.doc.length;
+  const a = Math.min(Math.max(0, from), max);
+  const b = Math.min(Math.max(0, to), max);
+  v.dispatch({
+    selection: EditorSelection.single(a, b),
+    effects: EditorView.scrollIntoView(a, { y: "center" }),
+  });
+  v.focus();
+}
+
 /** Insert text at the current cursor/selection and refocus the editor. */
 export function insertAtCursor(text: string) {
   const v = getEditorView();

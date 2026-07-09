@@ -1,0 +1,287 @@
+import { memo, useMemo, useState } from "react";
+import { Accessibility, ChevronDown, Eye, FileSearch, Info, Link2, Play, RefreshCw, ShieldCheck } from "lucide-react";
+import { usePreflightStore } from "@/store/preflight";
+import { useFilesStore } from "@/store/files";
+import { looksLikeResumeSource } from "@/lib/preflight/doc-type";
+import type { Finding, PreflightReport, Severity } from "@/lib/preflight/types";
+import { ScoreRing } from "./ScoreRing";
+import { FindingRow } from "./FindingRow";
+import { ReaderView } from "./ReaderView";
+import { AtsCard } from "./AtsCard";
+import { PrepExport } from "./PrepExport";
+import { cn } from "@/lib/utils";
+
+type CheckId = "ats" | "a11y" | "refs";
+type Flags = Record<CheckId, boolean>;
+
+const SEV_ORDER: Severity[] = ["error", "warning", "info"];
+
+const CHECKS: { id: CheckId; label: string; icon: typeof FileSearch; who: string; detail: string }[] = [
+  {
+    id: "ats",
+    label: "ATS readiness",
+    icon: FileSearch,
+    who: "For resumes and CVs",
+    detail:
+      "Simulates what an Applicant Tracking System (Workday, Taleo, Greenhouse) extracts from your PDF, and flags layout and formatting that scrambles it. Not relevant for research papers.",
+  },
+  {
+    id: "a11y",
+    label: "Accessibility",
+    icon: Accessibility,
+    who: "For research, government, and published PDFs",
+    detail:
+      "Checks screen-reader readiness against Section 508 / WCAG: missing alt text, document language, reading order, and whether the PDF is tagged. Optional for resumes.",
+  },
+  {
+    id: "refs",
+    label: "References & assets",
+    icon: Link2,
+    who: "For research and multi-file documents",
+    detail:
+      "Finds undefined citations and cross-references, duplicate labels, and missing figure or included files, before they break your PDF at submission.",
+  },
+];
+
+const SCORE_LABEL: Record<CheckId, string> = { ats: "ATS", a11y: "Access", refs: "Refs" };
+const forLens = (id: CheckId): Flags => ({ ats: id === "ats", a11y: id === "a11y", refs: id === "refs" });
+function includes(f: Finding, shown: Flags): boolean {
+  const inAts = f.lens === "ats" || f.lens === "both";
+  const inA11y = f.lens === "a11y" || f.lens === "both";
+  return (shown.ats && inAts) || (shown.a11y && inA11y) || (shown.refs && f.lens === "refs");
+}
+const isOutputFinding = (f: Finding) => f.id.startsWith("pdf-") || f.id.startsWith("output-") || f.id.startsWith("ats-");
+const bySeverity = (f: Finding[]) => SEV_ORDER.flatMap((sev) => f.filter((x) => x.severity === sev));
+
+export function PreflightPanel() {
+  // Narrow selectors so unrelated store writes do not re-render the whole panel.
+  const report = usePreflightStore((s) => s.report);
+  const pageText = usePreflightStore((s) => s.pageText);
+  const running = usePreflightStore((s) => s.running);
+  const showReader = usePreflightStore((s) => s.showReader);
+  const error = usePreflightStore((s) => s.error);
+  const toggleReader = usePreflightStore((s) => s.toggleReader);
+  const run = usePreflightStore((s) => s.run);
+  const ran = usePreflightStore((s) => s.ran);
+  const storedEnabled = usePreflightStore((s) => s.enabled);
+  const storedOpen = usePreflightStore((s) => s.open);
+  const setRan = usePreflightStore((s) => s.setRan);
+  const setEnabled = usePreflightStore((s) => s.setEnabled);
+  const setOpen = usePreflightStore((s) => s.setOpen);
+
+  // Subscribe only to the active document's content (a string), not the whole map.
+  const source = useFilesStore((s) => (s.activePath ? s.files[s.activePath]?.content ?? "" : ""));
+
+  // Pre-enable and expand the check that matches the document type.
+  const suggested = useMemo<Flags>(() => {
+    const resume = looksLikeResumeSource(source);
+    // Resume: ATS. Otherwise: accessibility and integrity, the paper concerns.
+    return { ats: resume, a11y: !resume, refs: !resume };
+  }, [source]);
+  const enabled = storedEnabled ?? suggested;
+  const expanded = storedOpen ?? suggested;
+  const [infoOpen, setInfoOpen] = useState(false);
+  // Which run is in flight, so only the clicked button shows a spinner.
+  const [busy, setBusy] = useState<CheckId | "all" | null>(null);
+
+  const flip = (id: CheckId) => setEnabled({ ...enabled, [id]: !enabled[id] });
+  const toggleOpen = (id: CheckId) => setOpen({ ...expanded, [id]: !expanded[id] });
+
+  const runOne = async (id: CheckId) => {
+    setBusy(id);
+    setRan({ ...ran, [id]: true });
+    setOpen({ ...expanded, [id]: true });
+    await run();
+    setBusy(null);
+  };
+  const runEnabled = async () => {
+    setBusy("all");
+    setRan({ ats: enabled.ats, a11y: enabled.a11y, refs: enabled.refs });
+    setOpen({
+      ats: enabled.ats || expanded.ats,
+      a11y: enabled.a11y || expanded.a11y,
+      refs: enabled.refs || expanded.refs,
+    });
+    await run();
+    setBusy(null);
+  };
+  const spinning = (id: CheckId) => busy === id || busy === "all";
+
+  const enabledCount = Number(enabled.ats) + Number(enabled.a11y) + Number(enabled.refs);
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="relative flex h-9 items-center gap-2 border-b border-sidebar-border px-3">
+        <ShieldCheck className="size-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium uppercase tracking-wide text-sidebar-foreground/70">Preflight</span>
+        <button
+          onClick={() => setInfoOpen((v) => !v)}
+          className="ml-auto flex items-center rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label="About Preflight"
+        >
+          <Info className="size-3.5" />
+        </button>
+        {infoOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setInfoOpen(false)} />
+            <div className="absolute right-2 top-9 z-50 w-72 rounded-md border bg-popover p-3 text-popover-foreground shadow-xl">
+              <p className="text-xs font-semibold">What is Preflight?</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                It checks how ready your document is before you send it out. Turn on the checks that fit your document
+                and run them.
+              </p>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                <span className="font-medium text-foreground">ATS readiness</span> is for resumes and CVs: whether an
+                Applicant Tracking System can parse your contact details and sections.
+              </p>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                <span className="font-medium text-foreground">Accessibility</span> is for research, government, and any
+                published PDF: screen-reader readiness and Section 508 / WCAG.
+              </p>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                <span className="font-medium text-foreground">References & assets</span> catches undefined citations and
+                cross-references, duplicate labels, and missing files before they break your PDF.
+              </p>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                Everything runs on your machine, from your source and last compiled PDF. Results are a readiness aid, not
+                a formal certification.
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col gap-2 overflow-auto p-3">
+        {CHECKS.map((c) => {
+          const Icon = c.icon;
+          const on = enabled[c.id];
+          const isOpen = expanded[c.id];
+          const showResults = on && ran[c.id] && !!report;
+          return (
+            <div key={c.id} className={cn("rounded-lg border border-sidebar-border", !on && "opacity-70")}>
+              <div className="flex items-center gap-2.5 p-3">
+                <button onClick={() => flip(c.id)} role="checkbox" aria-checked={on} aria-label={`Enable ${c.label}`} className="shrink-0">
+                  <span
+                    className={cn(
+                      "flex size-4 items-center justify-center rounded border",
+                      on ? "border-primary bg-primary text-white" : "border-muted-foreground/40",
+                    )}
+                  >
+                    {on && <span className="text-[10px] leading-none">✓</span>}
+                  </span>
+                </button>
+                <button onClick={() => toggleOpen(c.id)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+                  <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-sm font-medium">{c.label}</span>
+                </button>
+                <button
+                  onClick={() => void runOne(c.id)}
+                  disabled={!on || running}
+                  className="inline-flex w-14 items-center justify-center gap-1 rounded border border-input px-2 py-1 text-xs hover:bg-accent disabled:opacity-40"
+                >
+                  {spinning(c.id) ? (
+                    <RefreshCw className="size-3 animate-spin" />
+                  ) : (
+                    <>
+                      <Play className="size-3" /> Run
+                    </>
+                  )}
+                </button>
+                <button onClick={() => toggleOpen(c.id)} aria-label={isOpen ? "Collapse" : "Expand"} className="shrink-0 text-muted-foreground">
+                  <ChevronDown className={cn("size-4 transition-transform", isOpen && "rotate-180")} />
+                </button>
+              </div>
+
+              {isOpen && (
+                <div className="border-t border-sidebar-border px-3 py-2.5">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{c.who}</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{c.detail}</p>
+                  {showResults ? (
+                    <CheckResults id={c.id} report={report} />
+                  ) : (
+                    on && <p className="mt-2 text-[11px] italic text-muted-foreground">Run this check to see results.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {enabledCount > 1 && (
+          <button
+            onClick={() => void runEnabled()}
+            disabled={running}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {running ? <RefreshCw className="size-4 animate-spin" /> : <Play className="size-4" />}
+            {running ? "Analyzing…" : `Run ${enabledCount} enabled checks`}
+          </button>
+        )}
+
+        {error && <p className="px-1 text-xs text-red-500">Preflight failed: {error}</p>}
+
+        {(ran.ats || ran.a11y) && pageText.length > 0 && (
+          <div className="mt-1">
+            <button
+              onClick={toggleReader}
+              className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Eye className="size-3.5" /> {showReader ? "Hide" : "Show"} what the reader sees
+            </button>
+            {showReader && <ReaderView pages={pageText} />}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The results for a single check, rendered inside its accordion body. */
+const CheckResults = memo(function CheckResults({ id, report }: { id: CheckId; report: PreflightReport }) {
+  const { findings, src, out } = useMemo(() => {
+    const shown = forLens(id);
+    const f = report.findings.filter((x) => includes(x, shown));
+    return {
+      findings: f,
+      src: bySeverity(f.filter((x) => !isOutputFinding(x))),
+      out: bySeverity(f.filter(isOutputFinding)),
+    };
+  }, [id, report]);
+
+  const group = (label: string, items: Finding[]) =>
+    items.length > 0 && (
+      <div className="mt-2 flex flex-col gap-1.5">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        {items.map((f, i) => (
+          <FindingRow key={`${f.id}:${f.from ?? f.page ?? i}`} finding={f} />
+        ))}
+      </div>
+    );
+
+  return (
+    <div className="mt-3">
+      <div className="flex justify-center py-1">
+        <ScoreRing label={SCORE_LABEL[id]} score={id === "ats" ? report.atsScore : id === "a11y" ? report.a11yScore : report.refsScore} />
+      </div>
+
+      {id === "ats" && report.atsParse?.isResume && <AtsCard parse={report.atsParse} />}
+
+      {id !== "refs" && !report.hasPdf && (
+        <p className="mt-2 rounded-md border border-sidebar-border bg-black/[0.03] px-2.5 py-2 text-[11px] text-muted-foreground dark:bg-background">
+          Compile the project and run again to add output checks (reading order, garbled text, PDF metadata).
+        </p>
+      )}
+
+      {group("Source", src)}
+      {group("Compiled output", out)}
+
+      {findings.length === 0 && (
+        <p className="mt-2 rounded-md border border-sidebar-border bg-black/[0.03] px-2.5 py-4 text-center text-xs text-muted-foreground dark:bg-background">
+          No problems found.
+        </p>
+      )}
+
+      {id === "a11y" && <PrepExport />}
+    </div>
+  );
+});

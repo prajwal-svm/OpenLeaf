@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   Search,
   Settings as SettingsIcon,
+  ShieldCheck,
   Sparkles,
   Sun,
 } from "lucide-react";
@@ -86,6 +87,16 @@ export function Rail() {
             </button>
           </Tooltip>
         ))}
+
+        <Tooltip label="Preflight (ATS + accessibility)" side="right">
+          <button
+            aria-label="Preflight"
+            onClick={() => select("preflight")}
+            className={railBtn(railTab === "preflight" && showTree)}
+          >
+            <ShieldCheck className="size-5" />
+          </button>
+        </Tooltip>
 
         <span className="my-1 h-px w-6 bg-border" />
 
