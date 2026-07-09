@@ -294,7 +294,7 @@ export function SourceControl() {
     <div className="flex h-full flex-col bg-sidebar">
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-sidebar-border px-3">
         <GitBranch className="size-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium uppercase tracking-wide text-sidebar-foreground/70">Source Control</span>
+        <span className="text-xs font-medium uppercase tracking-wide text-sidebar-foreground/70">Git</span>
         {branch ? (
           <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground">
             <GitBranch className="size-3" />
