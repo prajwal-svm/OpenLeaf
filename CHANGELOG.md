@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Command omnibar** - the search bar (Cmd/Ctrl+Shift+F, from anywhere) is now a
+  Raycast-style palette: it finds your projects first, searches inside documents,
+  and runs commands. Slash commands scope it: `/create` opens the template
+  gallery, `/projects` searches projects, `/docs` searches document text, `/refs`
+  opens references, `/theme` toggles the theme, and `/settings` opens settings.
+  New projects can be created from anywhere, including inside a project.
+- **Appearance preferences** - set a global app font size that scales the whole
+  interface, pick the app and editor fonts (VS Code style), choose which view a
+  project opens in (split, editor, or PDF), and whether the file tree shows on
+  open.
+- **Template name hints** - the project-name field suggests a fitting placeholder
+  per template (an IEEE paper hints "Attention Is All You Need", a resume hints a
+  person's name, and so on).
+- **PDF compile progress** - the preview shows an animated progress readout while
+  the first compile runs.
 - **Template gallery** - creating a project now opens a browsable gallery,
   organized by category (CVs & Resumes, Journals & Conferences, Theses & Reports,
   Books, Presentations, Posters, Letters), with search, an ATS-friendly filter,
@@ -38,6 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The PDF preview's fullscreen now preserves your current view: in split view it
+  fullscreens the whole window (editor and PDF, scrollable), and PDF-only view
+  still gets the immersive presentation mode.
 - A project's cover color is now saved to its `project.json` on disk, so it
   travels with the project across machines instead of living only in the browser.
 
