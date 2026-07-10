@@ -23,12 +23,15 @@ import {
   Diamond,
   Egg,
   Map as MapIcon,
+  Moon,
   RectangleHorizontal,
   Sigma,
   Square,
+  Sun,
   Type as TypeIcon,
 } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useTheme } from "@/lib/theme";
 import { nodeTypes } from "@/components/diagram/nodes/ShapeNode";
 import { DiagramEditContext } from "@/components/diagram/nodes/edit-context";
 import { Inspector } from "@/components/diagram/Inspector";
@@ -145,7 +148,12 @@ function CanvasInner({
   model: DiagramModel;
   onChange: (m: DiagramModel) => void;
 }) {
+  const { theme } = useTheme();
   const { screenToFlowPosition } = useReactFlow();
+  // Canvas theme is a per-diagram viewing preference (defaults to the app theme).
+  // It only affects the editor surface; shapes keep their own colors and the
+  // compiled figure is unaffected.
+  const [canvasTheme, setCanvasTheme] = useState<"light" | "dark">(theme === "dark" ? "dark" : "light");
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(model.nodes.map(modelNodeToRf));
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(model.edges.map(modelEdgeToRf));
   const [selNode, setSelNode] = useState<string | null>(null);
@@ -380,7 +388,17 @@ function CanvasInner({
           <span className="text-[11px] text-muted-foreground">
             {pending ? "Click on the canvas to place the shape (Esc to cancel)." : "Drag to move, double-click to edit text, drag a handle to connect."}
           </span>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-0.5">
+            <Tooltip label={canvasTheme === "dark" ? "Light canvas" : "Dark canvas"}>
+              <button
+                type="button"
+                aria-label="Toggle canvas theme"
+                onClick={() => setCanvasTheme((t) => (t === "dark" ? "light" : "dark"))}
+                className="flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                {canvasTheme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+              </button>
+            </Tooltip>
             <Tooltip label={showMinimap ? "Hide minimap" : "Show minimap"}>
               <button
                 type="button"
@@ -397,13 +415,16 @@ function CanvasInner({
             </Tooltip>
           </div>
         </div>
-        <div className={cn("min-h-0 flex-1", pending && "[&_.react-flow__pane]:cursor-crosshair")}>
+        <div
+          className={cn("min-h-0 flex-1", pending && "[&_.react-flow__pane]:cursor-crosshair")}
+          style={{ background: canvasTheme === "dark" ? "#0d1117" : "#ffffff" }}
+        >
           <DiagramEditContext.Provider value={editApi}>
             <ReactFlow
               nodes={nodes}
               edges={edges}
               nodeTypes={nodeTypes}
-              colorMode="light"
+              colorMode={canvasTheme}
               connectionMode={ConnectionMode.Loose}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
