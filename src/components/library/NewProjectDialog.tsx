@@ -29,6 +29,46 @@ const CATEGORY_ORDER = [
   "Letters",
 ];
 
+// Aspirational, template-specific placeholders for the project-name field, keyed
+// by template id first, then falling back by category. A small, editable map.
+const NAME_HINT_BY_ID: Record<string, string> = {
+  blank: "Untitled",
+  "ats-resume": "Jane Doe Resume",
+  resume: "Alex Chen Resume",
+  "modern-resume": "Morgan Lee Resume",
+  "sidebar-resume": "Jordan Rivera CV",
+  ieee: "Attention Is All You Need",
+  acm: "A Scalable Approach to Consensus",
+  elsevier: "On the Dynamics of Complex Networks",
+  "article-academic": "A Minimalist Study of X",
+  thesis: "Toward Reliable Distributed Systems",
+  book: "The Pragmatic Universe",
+  beamer: "Q3 Product Review",
+  poster: "Deep Learning for Protein Folding",
+  newsletter: "The Weekly Ledger",
+  assignment: "Algorithms Assignment 3",
+  calendar: "January 2026 Calendar",
+  bibliography: "My References",
+  letter: "Cover Letter to Acme",
+};
+const NAME_HINT_BY_CATEGORY: Record<string, string> = {
+  "CVs & Resumes": "Firstname Lastname Resume",
+  "Journals & Conferences": "Your Paper Title",
+  Presentations: "Your Talk Title",
+  Books: "Your Book Title",
+  "Theses & Reports": "Your Thesis Title",
+  Posters: "Your Poster Title",
+  Letters: "Your Letter",
+  Newsletters: "Your Newsletter",
+  Assignments: "Your Assignment",
+  Calendars: "Your Calendar",
+  Bibliographies: "Your Bibliography",
+};
+function nameHint(t: TemplateInfo | null): string {
+  if (!t) return "My Project";
+  return NAME_HINT_BY_ID[t.id] ?? NAME_HINT_BY_CATEGORY[t.category] ?? "My Project";
+}
+
 // Cache preview data URIs so switching steps or categories doesn't refetch.
 const previewCache = new Map<string, string | null>();
 
@@ -348,7 +388,7 @@ export function NewProjectDialog({
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && name.trim() && !working) void submit();
                   }}
-                  placeholder="e.g. My Resume"
+                  placeholder={nameHint(selected)}
                   className="rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
                 />
 

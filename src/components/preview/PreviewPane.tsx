@@ -5,8 +5,10 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { PdfViewer, type PdfViewerHandle, type PdfLayout } from "@/components/pdf/PdfViewer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LogPane } from "@/components/editor/LogPane";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCompileStore } from "@/store/compile";
 import { useFilesStore } from "@/store/files";
+import { useSettingsStore } from "@/store/settings";
 import { inverseFromClick } from "@/features/synctex";
 import { saveFileBase64, uint8ToBase64 } from "@/lib/tauri";
 import { notifyError, toast } from "@/lib/toast";
@@ -25,6 +27,7 @@ export function PreviewPane() {
   const projectId = useFilesStore((s) => s.projectId);
   const refreshTree = useFilesStore((s) => s.refreshTree);
   const mainDoc = useFilesStore((s) => s.mainDoc);
+  const viewMode = useSettingsStore((s) => s.viewMode);
   const [scale, setScale] = useState(1.0);
   const [tab, setTab] = useState<"pdf" | "logs">("pdf");
   const [saveOpen, setSaveOpen] = useState(false);
@@ -302,14 +305,30 @@ export function PreviewPane() {
                 {inverted ? <Contrast className="size-3.5 text-primary" /> : <Contrast className="size-3.5" />}
               </Button>
             </Tooltip>
-            <Tooltip label="Presentation mode">
+            <Tooltip label={viewMode === "pdf" ? "Presentation mode" : "Fullscreen (keeps your view)"}>
               <Button
                 variant="ghost"
                 size="icon"
                 className="size-7"
                 disabled={!pdfBytes}
-                onClick={() => setPresenting(true)}
-                aria-label="Presentation mode"
+                onClick={() => {
+                  // In PDF-only view, an immersive slide presentation. In split
+                  // or editor view, fullscreen the whole window so the current
+                  // layout (and scrolling) is preserved.
+                  if (viewMode === "pdf") {
+                    setPresenting(true);
+                  } else {
+                    void (async () => {
+                      try {
+                        const win = getCurrentWindow();
+                        await win.setFullscreen(!(await win.isFullscreen()));
+                      } catch {
+                        /* not running in Tauri */
+                      }
+                    })();
+                  }
+                }}
+                aria-label={viewMode === "pdf" ? "Presentation mode" : "Fullscreen"}
               >
                 <Maximize className="size-3.5" />
               </Button>
@@ -360,7 +379,7 @@ export function PreviewPane() {
                 Compile failed. Open the <strong>Logs</strong> tab to see what went wrong.
               </p>
             ) : compiling ? (
-              <p className="text-sm">Compiling your document…</p>
+              <CompileProgress estimateMs={compileTimeMs ?? 2500} />
             ) : (
               <div className="space-y-2">
                 <p className="mx-auto max-w-xs text-xs">
@@ -431,6 +450,38 @@ export function PreviewPane() {
           onExit={() => setPresenting(false)}
         />
       )}
+    </div>
+  );
+}
+
+// Tectonic does not stream real progress, so we show a reassuring estimate that
+// eases toward ~95% over the expected duration (last compile time). The PDF
+// appearing is the real "done" signal, which replaces this view.
+function CompileProgress({ estimateMs }: { estimateMs: number }) {
+  const [pct, setPct] = useState(0);
+  useEffect(() => {
+    const start = performance.now();
+    const tau = Math.max(400, estimateMs) / 2.3; // ~90% reached at estimateMs
+    let raf = 0;
+    const tick = () => {
+      const elapsed = performance.now() - start;
+      setPct(Math.min(95, 90 * (1 - Math.exp(-elapsed / tau))));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [estimateMs]);
+  return (
+    <div className="w-52 space-y-2">
+      <p className="text-sm">
+        Compiling your document… <span className="tabular-nums font-medium">{Math.round(pct)}%</span>
+      </p>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-150 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }
