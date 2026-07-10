@@ -18,6 +18,13 @@ import { DiagramCanvas } from "@/components/diagram/DiagramCanvas";
 import { type DiagramModel, newId } from "@/components/diagram/model";
 import { modelToTikz, serializeDiagram, parseEmbeddedModel, DIAGRAM_LIBS } from "@/components/diagram/tikz-serializer";
 import { Tooltip } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useFilesStore } from "@/store/files";
 import { useSettingsStore } from "@/store/settings";
 import {
@@ -387,22 +394,30 @@ export function DiagramComposer() {
           <p className="text-[11px] text-muted-foreground">
             Saves the source to <code className="font-mono">figures/{stem || "name"}.tikz</code>{hasDrawing ? " (re-openable to edit)" : ""}.
           </p>
-          <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             PNG scale
-            <select
-              value={scale}
-              onChange={(e) => setScale(Number(e.target.value))}
-              className="rounded border border-input bg-background px-1 py-0.5 text-[11px] outline-none focus:border-primary"
-            >
-              <option value={1}>1x</option>
-              <option value={2}>2x</option>
-              <option value={3}>3x</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} />
+            <Select value={String(scale)} onValueChange={(v) => setScale(Number(v))}>
+              <SelectTrigger className="h-7 w-16 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[100]">
+                <SelectItem value="1" className="text-xs">1x</SelectItem>
+                <SelectItem value="2" className="text-xs">2x</SelectItem>
+                <SelectItem value="3" className="text-xs">3x</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTransparent((v) => !v)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors",
+              transparent ? "border-primary/50 bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-accent",
+            )}
+          >
+            <span className={cn("size-2 rounded-full", transparent ? "bg-primary" : "bg-muted-foreground/40")} />
             Transparent
-          </label>
+          </button>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="secondary" size="sm" onClick={() => void insertAsCode()}>
               <Code2 className="size-3.5" /> Insert as code (vector)

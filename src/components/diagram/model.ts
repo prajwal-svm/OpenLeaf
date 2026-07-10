@@ -17,7 +17,8 @@ export interface DiagNode {
   strokeStyle?: StrokeStyle;
   strokeWidth?: number; // px
   textColor?: string; // hex
-  fontSize?: number; // pt hint
+  fontSize?: number; // pt
+  radius?: number; // corner radius in pt (rectangle/roundrect/text)
 }
 
 export interface DiagEdge {

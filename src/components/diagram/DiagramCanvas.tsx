@@ -9,6 +9,7 @@ import {
   addEdge,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   MarkerType,
   type Node,
   type Edge,
@@ -19,12 +20,15 @@ import {
   Circle,
   Diamond,
   Egg,
+  Map as MapIcon,
   RectangleHorizontal,
   Square,
   Type as TypeIcon,
 } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useTheme } from "@/lib/theme";
 import { nodeTypes } from "@/components/diagram/nodes/ShapeNode";
+import { DiagramEditContext } from "@/components/diagram/nodes/edit-context";
 import { Inspector } from "@/components/diagram/Inspector";
 import {
   type DiagramModel,
@@ -33,6 +37,7 @@ import {
   type NodeShape,
   newId,
 } from "@/components/diagram/model";
+import { cn } from "@/lib/utils";
 
 const DEFAULTS: Record<NodeShape, { w: number; h: number; label: string }> = {
   rectangle: { w: 120, h: 56, label: "Label" },
@@ -70,6 +75,8 @@ function modelNodeToRf(n: DiagNode): Node {
       strokeStyle: n.strokeStyle,
       strokeWidth: n.strokeWidth,
       textColor: n.textColor,
+      fontSize: n.fontSize,
+      radius: n.radius,
     },
   };
 }
@@ -104,6 +111,8 @@ function rfNodeToModel(n: Node): DiagNode {
     strokeStyle: d.strokeStyle as DiagNode["strokeStyle"],
     strokeWidth: d.strokeWidth as number | undefined,
     textColor: d.textColor as string | undefined,
+    fontSize: d.fontSize as number | undefined,
+    radius: d.radius as number | undefined,
   };
 }
 
@@ -127,24 +136,25 @@ function CanvasInner({
   model: DiagramModel;
   onChange: (m: DiagramModel) => void;
 }) {
+  const { theme } = useTheme();
+  const { screenToFlowPosition } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(model.nodes.map(modelNodeToRf));
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(model.edges.map(modelEdgeToRf));
   const [selNode, setSelNode] = useState<string | null>(null);
   const [selEdge, setSelEdge] = useState<string | null>(null);
+  const [pending, setPending] = useState<NodeShape | null>(null);
+  const [showMinimap, setShowMinimap] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const lastEmittedRef = useRef<DiagramModel | null>(model);
   const hydratingRef = useRef(false);
   const firstRunRef = useRef(true);
-  const cascadeRef = useRef(0);
-  // Undo/redo history of models (coalesced).
   const historyRef = useRef<DiagramModel[]>([model]);
   const historyIdxRef = useRef(0);
   const historyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Re-hydrate the canvas when the parent replaces the model (e.g. opening an
-  // embedded diagram). Skips our own echoes via reference check.
   useEffect(() => {
     if (model === lastEmittedRef.current) return;
     hydratingRef.current = true;
@@ -154,10 +164,7 @@ function CanvasInner({
     historyIdxRef.current = 0;
   }, [model, setNodes, setEdges]);
 
-  // Emit the derived model on any canvas change (except right after hydration).
   useEffect(() => {
-    // Skip the mount run (and hydration echoes) so merely opening the canvas
-    // does not regenerate code and clobber hand edits; only real edits emit.
     if (firstRunRef.current) {
       firstRunRef.current = false;
       return;
@@ -173,7 +180,6 @@ function CanvasInner({
     };
     lastEmittedRef.current = m;
     onChangeRef.current(m);
-    // Coalesce history snapshots so a drag does not flood undo.
     if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
     historyTimerRef.current = setTimeout(() => {
       const hist = historyRef.current.slice(0, historyIdxRef.current + 1);
@@ -193,7 +199,6 @@ function CanvasInner({
     },
     [setNodes, setEdges],
   );
-
   const undo = useCallback(() => {
     if (historyIdxRef.current <= 0) return;
     historyIdxRef.current -= 1;
@@ -207,9 +212,10 @@ function CanvasInner({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPending(null);
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      const t = e.target as HTMLElement;
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA") return;
       e.preventDefault();
       if (e.shiftKey) redo();
       else undo();
@@ -218,15 +224,14 @@ function CanvasInner({
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo]);
 
-  const addNode = useCallback(
-    (shape: NodeShape) => {
+  const placeNode = useCallback(
+    (shape: NodeShape, flowX: number, flowY: number) => {
       const def = DEFAULTS[shape];
-      const k = cascadeRef.current++ % 6;
       const n: DiagNode = {
         id: newId(),
         shape,
-        x: 120 + k * 28,
-        y: 100 + k * 28,
+        x: Math.round(flowX - def.w / 2),
+        y: Math.round(flowY - def.h / 2),
         w: def.w,
         h: def.h,
         label: def.label,
@@ -235,10 +240,21 @@ function CanvasInner({
         strokeStyle: "solid",
         strokeWidth: 1,
         textColor: "#0f172a",
+        radius: shape === "roundrect" ? 6 : 0,
       };
       setNodes((ns) => [...ns, modelNodeToRf(n)]);
     },
     [setNodes],
+  );
+
+  const onPaneClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!pending) return;
+      const p = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      placeNode(pending, p.x, p.y);
+      setPending(null);
+    },
+    [pending, placeNode, screenToFlowPosition],
   );
 
   const onConnect = useCallback(
@@ -259,20 +275,30 @@ function CanvasInner({
   const patchNode = useCallback(
     (patch: Partial<DiagNode>) => {
       if (!selNode) return;
-      setNodes((ns) =>
-        ns.map((n) => (n.id === selNode ? { ...n, data: { ...n.data, ...patch } } : n)),
-      );
+      setNodes((ns) => ns.map((n) => (n.id === selNode ? { ...n, data: { ...n.data, ...patch } } : n)));
     },
     [selNode, setNodes],
   );
   const patchEdge = useCallback(
     (patch: Partial<DiagEdge>) => {
       if (!selEdge) return;
-      setEdges((es) =>
-        es.map((e) => (e.id === selEdge ? modelEdgeToRf({ ...rfEdgeToModel(e), ...patch }) : e)),
-      );
+      setEdges((es) => es.map((e) => (e.id === selEdge ? modelEdgeToRf({ ...rfEdgeToModel(e), ...patch }) : e)));
     },
     [selEdge, setEdges],
+  );
+
+  // Inline label editing API for the shape nodes.
+  const editApi = useMemo(
+    () => ({
+      editingId,
+      beginEdit: (edId: string) => setEditingId(edId),
+      cancelEdit: () => setEditingId(null),
+      commitLabel: (edId: string, label: string) => {
+        setNodes((ns) => ns.map((n) => (n.id === edId ? { ...n, data: { ...n.data, label } } : n)));
+        setEditingId(null);
+      },
+    }),
+    [editingId, setNodes],
   );
 
   const selectedNode = useMemo(
@@ -289,12 +315,18 @@ function CanvasInner({
       {/* Palette */}
       <div className="flex shrink-0 flex-col gap-1 border-r bg-sidebar p-1.5">
         {PALETTE.map((p) => (
-          <Tooltip key={p.shape} label={p.label} side="right">
+          <Tooltip key={p.shape} label={`${p.label} (click, then click canvas)`} side="right">
             <button
               type="button"
               aria-label={p.label}
-              onClick={() => addNode(p.shape)}
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              aria-pressed={pending === p.shape}
+              onClick={() => setPending((cur) => (cur === p.shape ? null : p.shape))}
+              className={cn(
+                "flex size-8 items-center justify-center rounded-md transition-colors",
+                pending === p.shape
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
             >
               {p.icon}
             </button>
@@ -302,33 +334,60 @@ function CanvasInner({
         ))}
       </div>
 
-      {/* Canvas */}
-      <div className="min-w-0 flex-1">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onSelectionChange={({ nodes: sn, edges: se }) => {
-            setSelNode(sn[0]?.id ?? null);
-            setSelEdge(se[0]?.id ?? null);
-          }}
-          snapToGrid
-          snapGrid={[10, 10]}
-          fitView
-          deleteKeyCode={["Backspace", "Delete"]}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-          <Controls showInteractive={false} />
-          <MiniMap pannable zoomable className="!bg-sidebar" />
-        </ReactFlow>
+      {/* Canvas + top toolbar */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-8 shrink-0 items-center gap-2 border-b bg-sidebar px-2">
+          <span className="text-[11px] text-muted-foreground">
+            {pending ? "Click on the canvas to place the shape (Esc to cancel)." : "Drag to move, double-click to edit text, drag a handle to connect."}
+          </span>
+          <div className="ml-auto">
+            <Tooltip label={showMinimap ? "Hide minimap" : "Show minimap"}>
+              <button
+                type="button"
+                aria-label="Toggle minimap"
+                aria-pressed={showMinimap}
+                onClick={() => setShowMinimap((v) => !v)}
+                className={cn(
+                  "flex size-6 items-center justify-center rounded transition-colors",
+                  showMinimap ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+              >
+                <MapIcon className="size-3.5" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+        <div className={cn("min-h-0 flex-1", pending && "[&_.react-flow__pane]:cursor-crosshair")}>
+          <DiagramEditContext.Provider value={editApi}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              colorMode={theme === "dark" ? "dark" : "light"}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onPaneClick={onPaneClick}
+              onSelectionChange={({ nodes: sn, edges: se }) => {
+                setSelNode(sn[0]?.id ?? null);
+                setSelEdge(se[0]?.id ?? null);
+              }}
+              snapToGrid
+              snapGrid={[10, 10]}
+              fitView
+              deleteKeyCode={["Backspace", "Delete"]}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+              <Controls showInteractive={false} />
+              {showMinimap && <MiniMap pannable zoomable />}
+            </ReactFlow>
+          </DiagramEditContext.Provider>
+        </div>
       </div>
 
       {/* Inspector */}
-      <div className="w-52 shrink-0 overflow-y-auto border-l bg-sidebar">
+      <div className="w-56 shrink-0 overflow-y-auto border-l bg-sidebar">
         <Inspector
           node={selectedNode ? rfNodeToModel(selectedNode) : null}
           edge={selectedEdge ? rfEdgeToModel(selectedEdge) : null}

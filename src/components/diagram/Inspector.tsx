@@ -6,8 +6,20 @@ import type {
   EdgeArrow,
   EdgeStyle,
 } from "@/components/diagram/model";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+const ROUNDABLE = new Set(["rectangle", "roundrect", "text"]);
+const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28];
+const RADII = [0, 2, 4, 6, 8, 12, 16, 24];
+const WIDTHS = [0.5, 1, 1.5, 2, 3];
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2 text-xs">
       <span className="text-muted-foreground">{label}</span>
@@ -27,8 +39,33 @@ function ColorInput({ value, onChange }: { value?: string; onChange: (v: string)
   );
 }
 
-const selectCls =
-  "rounded border border-input bg-background px-1.5 py-1 text-xs outline-none focus:border-primary";
+/** A shadcn Select bound to a string value. */
+function Pick({
+  value,
+  onChange,
+  options,
+  width = "w-28",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  width?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className={`h-7 ${width} text-xs`}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="z-[100]">
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value} className="text-xs">
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 /** Style controls for the currently selected node or edge. */
 export function Inspector({
@@ -53,9 +90,7 @@ export function Inspector({
   if (node) {
     return (
       <div className="flex flex-col gap-2.5 p-3">
-        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          Shape
-        </div>
+        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Shape</div>
         <label className="flex flex-col gap-1 text-xs">
           <span className="text-muted-foreground">Label (LaTeX)</span>
           <input
@@ -64,40 +99,59 @@ export function Inspector({
             className="rounded border border-input bg-background px-1.5 py-1 text-xs outline-none focus:border-primary"
           />
         </label>
-        {node.shape !== "text" && (
-          <>
-            <Row label="Fill">
-              <ColorInput value={node.fill} onChange={(v) => onNodeChange({ fill: v })} />
-            </Row>
-            <Row label="Border">
-              <ColorInput value={node.stroke} onChange={(v) => onNodeChange({ stroke: v })} />
-            </Row>
-            <Row label="Border style">
-              <select
-                value={node.strokeStyle || "solid"}
-                onChange={(e) => onNodeChange({ strokeStyle: e.target.value as StrokeStyle })}
-                className={selectCls}
-              >
-                <option value="solid">Solid</option>
-                <option value="dashed">Dashed</option>
-                <option value="dotted">Dotted</option>
-              </select>
-            </Row>
-          </>
+        <Field label="Fill">
+          <ColorInput value={node.fill} onChange={(v) => onNodeChange({ fill: v })} />
+        </Field>
+        <Field label="Border">
+          <ColorInput value={node.stroke} onChange={(v) => onNodeChange({ stroke: v })} />
+        </Field>
+        <Field label="Border style">
+          <Pick
+            value={node.strokeStyle || "solid"}
+            onChange={(v) => onNodeChange({ strokeStyle: v as StrokeStyle })}
+            options={[
+              { value: "solid", label: "Solid" },
+              { value: "dashed", label: "Dashed" },
+              { value: "dotted", label: "Dotted" },
+            ]}
+          />
+        </Field>
+        <Field label="Border width">
+          <Pick
+            value={String(node.strokeWidth ?? 1)}
+            onChange={(v) => onNodeChange({ strokeWidth: Number(v) })}
+            options={WIDTHS.map((w) => ({ value: String(w), label: `${w}px` }))}
+            width="w-20"
+          />
+        </Field>
+        {ROUNDABLE.has(node.shape) && (
+          <Field label="Corner radius">
+            <Pick
+              value={String(node.radius ?? (node.shape === "roundrect" ? 6 : 0))}
+              onChange={(v) => onNodeChange({ radius: Number(v) })}
+              options={RADII.map((r) => ({ value: String(r), label: `${r}px` }))}
+              width="w-20"
+            />
+          </Field>
         )}
-        <Row label="Text color">
+        <Field label="Font size">
+          <Pick
+            value={String(node.fontSize ?? 11)}
+            onChange={(v) => onNodeChange({ fontSize: Number(v) })}
+            options={FONT_SIZES.map((s) => ({ value: String(s), label: `${s}pt` }))}
+            width="w-20"
+          />
+        </Field>
+        <Field label="Text color">
           <ColorInput value={node.textColor} onChange={(v) => onNodeChange({ textColor: v })} />
-        </Row>
+        </Field>
       </div>
     );
   }
 
-  // edge
   return (
     <div className="flex flex-col gap-2.5 p-3">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        Arrow
-      </div>
+      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Arrow</div>
       <label className="flex flex-col gap-1 text-xs">
         <span className="text-muted-foreground">Label</span>
         <input
@@ -106,38 +160,38 @@ export function Inspector({
           className="rounded border border-input bg-background px-1.5 py-1 text-xs outline-none focus:border-primary"
         />
       </label>
-      <Row label="Arrowhead">
-        <select
+      <Field label="Arrowhead">
+        <Pick
           value={edge!.arrow}
-          onChange={(e) => onEdgeChange({ arrow: e.target.value as EdgeArrow })}
-          className={selectCls}
-        >
-          <option value="forward">End</option>
-          <option value="both">Both</option>
-          <option value="none">None</option>
-        </select>
-      </Row>
-      <Row label="Routing">
-        <select
+          onChange={(v) => onEdgeChange({ arrow: v as EdgeArrow })}
+          options={[
+            { value: "forward", label: "End" },
+            { value: "both", label: "Both" },
+            { value: "none", label: "None" },
+          ]}
+        />
+      </Field>
+      <Field label="Routing">
+        <Pick
           value={edge!.routing}
-          onChange={(e) => onEdgeChange({ routing: e.target.value as EdgeRouting })}
-          className={selectCls}
-        >
-          <option value="straight">Straight</option>
-          <option value="orthogonal">Orthogonal</option>
-          <option value="curved">Curved</option>
-        </select>
-      </Row>
-      <Row label="Line">
-        <select
+          onChange={(v) => onEdgeChange({ routing: v as EdgeRouting })}
+          options={[
+            { value: "straight", label: "Straight" },
+            { value: "orthogonal", label: "Orthogonal" },
+            { value: "curved", label: "Curved" },
+          ]}
+        />
+      </Field>
+      <Field label="Line">
+        <Pick
           value={edge!.style}
-          onChange={(e) => onEdgeChange({ style: e.target.value as EdgeStyle })}
-          className={selectCls}
-        >
-          <option value="solid">Solid</option>
-          <option value="dashed">Dashed</option>
-        </select>
-      </Row>
+          onChange={(v) => onEdgeChange({ style: v as EdgeStyle })}
+          options={[
+            { value: "solid", label: "Solid" },
+            { value: "dashed", label: "Dashed" },
+          ]}
+        />
+      </Field>
     </div>
   );
 }

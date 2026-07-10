@@ -1,6 +1,7 @@
-import { type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Handle, Position, NodeResizer, type NodeProps } from "@xyflow/react";
 import type { NodeShape, StrokeStyle } from "@/components/diagram/model";
+import { useDiagramEdit } from "@/components/diagram/nodes/edit-context";
 
 export interface ShapeData {
   shape: NodeShape;
@@ -10,6 +11,8 @@ export interface ShapeData {
   strokeStyle?: StrokeStyle;
   strokeWidth?: number;
   textColor?: string;
+  fontSize?: number;
+  radius?: number;
   [key: string]: unknown;
 }
 
@@ -20,14 +23,33 @@ const HANDLES = [
   { id: "l", pos: Position.Left },
 ];
 
-/** The editing surface representation of a diagram node. CSS approximates the
- *  shape; the real figure is generated from TikZ, so exactness here is not
- *  required. */
-export function ShapeNode({ data, selected }: NodeProps) {
+export function ShapeNode({ id, data, selected }: NodeProps) {
   const d = data as ShapeData;
-  const isText = d.shape === "text";
-  const radius =
-    d.shape === "circle" || d.shape === "ellipse" ? "50%" : d.shape === "roundrect" ? "8px" : "0";
+  const edit = useDiagramEdit();
+  const editing = edit.editingId === id;
+  const [hover, setHover] = useState(false);
+  const [draft, setDraft] = useState(d.label);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setDraft(d.label);
+      // Focus + select on the next tick so the textarea is mounted.
+      requestAnimationFrame(() => taRef.current?.select());
+    }
+  }, [editing, d.label]);
+
+  const isDiamond = d.shape === "diamond";
+  const round =
+    d.shape === "circle" || d.shape === "ellipse"
+      ? "50%"
+      : d.radius != null
+        ? `${d.radius}px`
+        : d.shape === "roundrect"
+          ? "8px"
+          : "0";
+
+  const hasBorder = !!d.stroke;
   const style: CSSProperties = {
     width: "100%",
     height: "100%",
@@ -36,20 +58,59 @@ export function ShapeNode({ data, selected }: NodeProps) {
     justifyContent: "center",
     textAlign: "center",
     padding: 4,
-    fontSize: 12,
     boxSizing: "border-box",
+    fontSize: d.fontSize ? d.fontSize * 1.6 : 12,
     color: d.textColor || "inherit",
-    background: isText ? "transparent" : d.fill || "transparent",
-    border: isText ? "none" : `${d.strokeWidth ?? 1}px ${d.strokeStyle || "solid"} ${d.stroke || "#334155"}`,
-    borderRadius: radius,
-    transform: d.shape === "diamond" ? "rotate(45deg)" : undefined,
+    background: d.fill || "transparent",
+    border: hasBorder ? `${d.strokeWidth ?? 1}px ${d.strokeStyle || "solid"} ${d.stroke}` : "none",
+    borderRadius: round,
+    transform: isDiamond ? "rotate(45deg)" : undefined,
+    overflow: "hidden",
   };
-  const labelStyle: CSSProperties = d.shape === "diamond" ? { transform: "rotate(-45deg)" } : {};
+  const labelStyle: CSSProperties = isDiamond ? { transform: "rotate(-45deg)" } : {};
+  const handlesVisible = hover || selected;
+
+  const commit = () => edit.commitLabel(id, draft);
+
   return (
-    <>
-      <NodeResizer isVisible={selected} minWidth={30} minHeight={24} />
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        edit.beginEdit(id);
+      }}
+      style={{ width: "100%", height: "100%" }}
+    >
+      <NodeResizer
+        isVisible={!!selected}
+        minWidth={30}
+        minHeight={24}
+        lineClassName="!border-primary"
+        handleClassName="!bg-background !border-primary"
+      />
       <div style={style}>
-        <span style={labelStyle}>{d.label}</span>
+        {editing ? (
+          <textarea
+            ref={taRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                commit();
+              } else if (e.key === "Escape") {
+                edit.cancelEdit();
+              }
+              e.stopPropagation();
+            }}
+            className="nodrag h-full w-full resize-none bg-transparent text-center outline-none"
+            style={{ ...labelStyle, fontSize: "inherit", color: "inherit" }}
+          />
+        ) : (
+          <span style={labelStyle}>{d.label}</span>
+        )}
       </div>
       {HANDLES.map((h) => (
         <Handle
@@ -57,10 +118,17 @@ export function ShapeNode({ data, selected }: NodeProps) {
           id={h.id}
           type="source"
           position={h.pos}
-          style={{ width: 7, height: 7, background: "var(--primary)" }}
+          style={{
+            width: 8,
+            height: 8,
+            background: "var(--primary)",
+            border: "1px solid var(--background)",
+            opacity: handlesVisible ? 1 : 0,
+            transition: "opacity 120ms",
+          }}
         />
       ))}
-    </>
+    </div>
   );
 }
 

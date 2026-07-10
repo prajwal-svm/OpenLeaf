@@ -19,47 +19,43 @@ function colorRef(hex: string | undefined): { name: string | null; def?: string 
   return { name, def: `\\definecolor{${name}}{HTML}{${h}}` };
 }
 
-const SHAPE_OPT: Record<NodeShape, string> = {
-  rectangle: "rectangle",
-  roundrect: "rectangle, rounded corners",
-  circle: "circle",
-  ellipse: "ellipse",
-  diamond: "diamond",
-  text: "",
-};
+const ROUNDABLE = new Set<NodeShape>(["rectangle", "roundrect", "text"]);
 
 function nodeToTikz(n: DiagNode, defs: Set<string>): string {
   const c = center(n);
-  const isText = n.shape === "text";
   const opts: string[] = [];
-  if (!isText) {
-    opts.push("draw");
-    const shape = SHAPE_OPT[n.shape];
-    if (shape) opts.push(shape);
-  }
+  // Shape (rectangle is TikZ's default, so it needs no keyword). "text" is a
+  // rectangle with no border/fill unless the user styles it.
+  if (n.shape === "circle") opts.push("circle");
+  else if (n.shape === "ellipse") opts.push("ellipse");
+  else if (n.shape === "diamond") opts.push("diamond");
+
   const stroke = colorRef(n.stroke);
-  if (stroke.name && !isText) {
+  if (stroke.name) {
     if (stroke.def) defs.add(stroke.def);
-    const i = opts.indexOf("draw");
-    if (i >= 0) opts[i] = `draw=${stroke.name}`;
+    opts.push(`draw=${stroke.name}`);
+    if (n.strokeStyle === "dashed") opts.push("dashed");
+    else if (n.strokeStyle === "dotted") opts.push("dotted");
+    if (n.strokeWidth && n.strokeWidth !== 1) opts.push(`line width=${px2cm(n.strokeWidth)}cm`);
   }
   const fill = colorRef(n.fill);
-  if (fill.name && !isText) {
+  if (fill.name) {
     if (fill.def) defs.add(fill.def);
     opts.push(`fill=${fill.name}`);
   }
-  if (n.strokeStyle === "dashed") opts.push("dashed");
-  if (n.strokeStyle === "dotted") opts.push("dotted");
-  if (n.strokeWidth && n.strokeWidth !== 1) opts.push(`line width=${px2cm(n.strokeWidth)}cm`);
+  const r = n.radius ?? (n.shape === "roundrect" ? 6 : 0);
+  if (r > 0 && ROUNDABLE.has(n.shape)) opts.push(`rounded corners=${r}pt`);
+
   const text = colorRef(n.textColor);
   if (text.name) {
     if (text.def) defs.add(text.def);
     opts.push(`text=${text.name}`);
   }
-  if (!isText) {
-    opts.push(`minimum width=${px2cm(n.w)}cm`);
-    opts.push(`minimum height=${px2cm(n.h)}cm`);
+  if (n.fontSize) {
+    opts.push(`font=\\fontsize{${n.fontSize}}{${+(n.fontSize * 1.2).toFixed(1)}}\\selectfont`);
   }
+  opts.push(`minimum width=${px2cm(n.w)}cm`);
+  opts.push(`minimum height=${px2cm(n.h)}cm`);
   const optStr = opts.length ? `[${opts.join(", ")}] ` : "";
   return `\\node (${n.id}) at (${c.x},${c.y}) ${optStr}{${n.label}};`;
 }
