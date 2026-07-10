@@ -2,8 +2,15 @@ use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Runtime};
 
 /// Build the application menu. We replace Tauri's default menu (File / Edit /
-/// View / Window / Help) with a single app menu holding only the three actions
-/// that make sense for OpenLeaf: About, Check for Updates, and Quit.
+/// View / Window / Help) with a trimmed menu: an app menu holding the three
+/// actions that make sense for OpenLeaf (About, Check for Updates, Quit) and a
+/// standard Edit menu.
+///
+/// The Edit menu is not decoration: on macOS the native Copy / Paste / Cut /
+/// Select All / Undo / Redo items are what carry the ⌘C / ⌘V / ⌘X / ⌘A / ⌘Z
+/// accelerators into the WKWebView. Without them the whole app (including the
+/// CodeMirror editor) gets no clipboard, because our custom menu replaced the
+/// default one that used to provide them.
 ///
 /// "About OpenLeaf" and "Check for Updates" are custom items that emit an event
 /// to the webview so they open our own in-app surfaces (the About dialog and
@@ -22,7 +29,22 @@ pub fn build<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .quit()
         .build()?;
 
-    MenuBuilder::new(handle).item(&app_menu).build()
+    // Standard editing commands. The predefined items bind the OS clipboard
+    // shortcuts; without this menu, ⌘C/⌘V/⌘X do nothing in the webview on macOS.
+    let edit_menu = SubmenuBuilder::new(handle, "Edit")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+
+    MenuBuilder::new(handle)
+        .item(&app_menu)
+        .item(&edit_menu)
+        .build()
 }
 
 /// Route a menu click to the webview. The frontend listens for these events and
