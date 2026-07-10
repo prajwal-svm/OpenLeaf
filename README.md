@@ -240,14 +240,19 @@ flowchart TB
     direction TB
     UI["React UI runtime<br/>Zustand stores · Tailwind v4 · router"]
     CM["CodeMirror 6 editor<br/>LaTeX language · autocomplete (ref/cite) · Vim"]
+    IDX["Code intelligence<br/>project index · outline / labels / cites / macros · go-to-def · rename"]
     LINT["Language checks (WASM)<br/>latex-mask → Harper grammar + Hunspell spell"]
-    PDF["PDF viewer<br/>pdf.js + web worker · SyncTeX overlay"]
+    PDF["PDF viewer<br/>pdf.js + web worker · virtualized · SyncTeX overlay"]
+    PRE["Preflight<br/>ATS + a11y rules · pdf.js text extract · tag-tree audit"]
     AICHAT["AI assistant<br/>Vercel AI SDK · agent tool-loop · approval gate"]
     IPCC["Tauri IPC client<br/>invoke() · event('compile:log')"]
     UI --> CM
     CM --> LINT
+    CM --> IDX
     UI --> PDF
+    UI --> PRE
     UI --> AICHAT
+    AICHAT --> IDX
     UI --> IPCC
   end
 
@@ -259,26 +264,32 @@ flowchart TB
     PATHS["Path sandbox<br/>resolve_within · reject abs / .. / symlink · per-project id"]
     PROJ["Project + FS store<br/>CRUD · full-text search · templates · zip / pandoc export"]
     COMPILE["Compile orchestrator<br/>tectonic_args · entry wrapper · log → errors · raw-bytes PDF"]
+    TAG["Tagging engine (opt-in)<br/>LuaLaTeX via system TeX Live or TinyTeX · tlmgr · PDF/UA"]
     SYNC["SyncTeX engine<br/>gunzip .synctex.gz · forward + inverse mapping"]
     GIT["Git engine<br/>auto-commit · diff · restore · push / pull"]
     GHAPI["GitHub module<br/>REST (reqwest) + OAuth device flow"]
+    CITE["Citation lookup<br/>async reqwest · DOI / arXiv / Crossref"]
     CFG["Config store @ 0600<br/>GitHub token + AI keys · never returned to webview"]
     UPD["Updater<br/>minisign verify → install → relaunch"]
     ROUTER --> PATHS
     PATHS --> PROJ
     ROUTER --> COMPILE
+    ROUTER --> TAG
     ROUTER --> SYNC
     ROUTER --> GIT
     ROUTER --> GHAPI
+    ROUTER --> CITE
     ROUTER --> CFG
     ROUTER --> UPD
   end
 
   TEC["Tectonic sidecar<br/>XeTeX engine · bundled externalBin"]
+  TEX["LuaLaTeX engine<br/>system TeX Live or on-demand TinyTeX (~100MB)"]
   GITBIN["git subprocess<br/>env-backed credential helper"]
   DISK["Local disk<br/>~/.openleaf/projects/&lt;id&gt; · real .git repos"]
   GHREMOTE["GitHub<br/>api.github.com + git remote"]
-  PROV["AI providers<br/>OpenAI · Anthropic (API key) · Ollama (local host)"]
+  CITEHOSTS["Citation sources<br/>doi.org · arXiv · Crossref"]
+  PROV["AI providers<br/>8 providers (OpenAI · Anthropic · Groq · …) + local Ollama"]
   FEEDS["Update feed<br/>GitHub Releases · latest.json + .sig"]
 
   IPCC -->|"invoke(cmd, args)"| IPC
@@ -287,11 +298,14 @@ flowchart TB
 
   COMPILE -->|"spawn -X compile --synctex"| TEC
   TEC -->|"PDF · .log · .synctex.gz"| COMPILE
+  TAG -->|"spawn lualatex · tagged output"| TEX
+  TEX -->|"tagged PDF · .log"| TAG
   PROJ --> DISK
   GIT --> GITBIN
   GITBIN --> DISK
   GITBIN -->|"push / pull · token via env"| GHREMOTE
   GHAPI -->|"Bearer token · Rust-side only"| GHREMOTE
+  CITE -->|"GET · BibTeX / Atom / JSON"| CITEHOSTS
   UPD -->|"GET latest.json · verify .sig"| FEEDS
   AICHAT -.->|"streamText · direct"| PROV
   AICHAT -.->|"tool calls: read / edit / compile"| IPCC
@@ -301,9 +315,9 @@ flowchart TB
   classDef ext fill:#dcfce7,stroke:#16a34a,stroke-width:1px,color:#14532d;
   classDef bound fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#7f1d1d;
 
-  class UI,CM,LINT,PDF,AICHAT,IPCC fe;
-  class ROUTER,PATHS,PROJ,COMPILE,SYNC,GIT,GHAPI,CFG,UPD be;
-  class TEC,GITBIN,DISK,GHREMOTE,PROV,FEEDS ext;
+  class UI,CM,IDX,LINT,PDF,PRE,AICHAT,IPCC fe;
+  class ROUTER,PATHS,PROJ,COMPILE,TAG,SYNC,GIT,GHAPI,CITE,CFG,UPD be;
+  class TEC,TEX,GITBIN,DISK,GHREMOTE,CITEHOSTS,PROV,FEEDS ext;
   class IPC bound;
 
   style FE fill:none,stroke:#0284c7,stroke-width:2px,color:#0c4a6e;
@@ -335,6 +349,19 @@ offline (Harper and Hunspell, both WASM). The trick is masking: commands, math,
 and comments get replaced with spaces before the checker sees the text, so it
 only ever reads prose. An offset map then projects each finding back onto the
 real source position.
+
+**Understanding the whole project.** OpenLeaf keeps a live index of every file:
+sections, labels, `\ref`/`\cite` uses, `.bib` keys, macros, and the `\input`
+graph. It rebuilds incrementally as you type, so go-to-definition,
+find-references, and project-wide rename work across files without a compile, and
+the AI reads the same map instead of guessing from the open file alone.
+
+**Preflight and tagged export.** A separate rules engine scores a document for
+resume parsers (ATS) and screen readers. Source rules read the `.tex`; output
+rules extract the compiled PDF's text and structure with pdf.js and audit its tag
+tree. For real PDF/UA output there's an opt-in path that compiles with LuaLaTeX
+(a system TeX Live, or an on-demand TinyTeX that installs to your home folder),
+since the default Tectonic engine is XeTeX and can't emit tags.
 
 **The AI agent.** The assistant is a multi-step tool loop, with your own OpenAI
 or Anthropic key (or a local Ollama host, no key needed), that reads files, edits, compiles, and then reads
