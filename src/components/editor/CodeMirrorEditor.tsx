@@ -44,7 +44,7 @@ import { hoverIntel } from "./cm/hover-intel";
 import { latexFolding } from "./cm/latex-folding";
 import { inlineDiffPlugin } from "./cm/inline-ai/plugin";
 import { toggleInlineEdit } from "./cm/inline-ai/openSession";
-import { useFilesStore, useActiveContent } from "@/store/files";
+import { useFilesStore } from "@/store/files";
 import { useSettingsStore } from "@/store/settings";
 
 export function CodeMirrorEditor() {
@@ -58,7 +58,11 @@ export function CodeMirrorEditor() {
   const suppressSyncRef = useRef(false);
 
   const activePath = useFilesStore((s) => s.activePath);
-  const activeContent = useActiveContent();
+  // NB: the active file's content is read imperatively (getState) inside the
+  // file-swap effect below, NOT subscribed to. Subscribing here would re-render
+  // this component on every keystroke (the store updates on each edit), which is
+  // pure waste since CodeMirror owns the document and the effect only needs the
+  // content when the file or docVersion actually changes.
   const docVersion = useFilesStore((s) => s.docVersion);
   const setContent = useFilesStore((s) => s.setContent);
   const vimEnabled = useSettingsStore((s) => s.vim);
@@ -167,6 +171,7 @@ export function CodeMirrorEditor() {
   useEffect(() => {
     const view = viewRef.current;
     if (!view || !activePath) return;
+    const activeContent = useFilesStore.getState().files[activePath]?.content ?? "";
     const pathChanged = prevPathRef.current !== activePath;
     suppressSyncRef.current = true;
     const current = view.state.doc.toString();

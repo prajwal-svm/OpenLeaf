@@ -6,10 +6,22 @@ import * as pdfjsLib from "pdfjs-dist";
 import workerSrc from "./pdf.worker?worker&url";
 // Styles for the selectable text layer + clickable annotation (link) layer.
 import "pdfjs-dist/web/pdf_viewer.css";
-import { registerPdfView, clearPdfView, canvasClickToBp } from "./pdfController";
+import { registerPdfView, clearPdfView, pageClickToBp } from "./pdfController";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+
+// Render pages within this many CSS pixels of the viewport (above and below), so
+// scrolling reveals already-rasterized pages. Larger = smoother scroll, more memory.
+const RENDER_MARGIN_PX = 1200;
+// Hard cap on simultaneously-rasterized pages, a safety net against unbounded
+// memory on very tall/zoomed documents regardless of scroll behavior.
+const MAX_RENDERED_PAGES = 14;
+
+interface RenderState {
+  renderScale: number;
+  tasks: pdfjsLib.RenderTask[];
+}
 
 interface PdfViewerProps {
   data: Uint8Array | null;
@@ -22,140 +34,185 @@ export function PdfViewer({ data, scale, onInverse }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onInverseRef = useRef(onInverse);
   onInverseRef.current = onInverse;
-  const renderSeqRef = useRef(0);
-  // The parsed document is kept across zoom changes so a scale change re-renders
-  // pages instead of re-downloading/re-parsing the whole PDF.
+
+  // Bumped on every (re)load and on unmount, so async work from a superseded
+  // document aborts instead of painting into the current one.
+  const loadSeqRef = useRef(0);
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
+
   const docRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
+  // Page number -> its persistent wrapper element (a lightweight placeholder that
+  // always exists so scroll geometry and SyncTeX work even when unrasterized).
+  const wrapsRef = useRef<Map<number, HTMLElement>>(new Map());
+  // Page number -> its live rasterization (canvas/text/annotation + render tasks).
+  const renderedRef = useRef<Map<number, RenderState>>(new Map());
+  // Pages currently within the observer's margin (candidates to keep rendered).
+  const visibleRef = useRef<Set<number>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  // Page dimensions at scale 1 (from page 1), for sizing not-yet-rendered pages.
+  const baseDimsRef = useRef<{ w: number; h: number }>({ w: 612, h: 792 });
 
-  // Render every page of an already-parsed document at the given scale. Guarded
-  // by `renderSeqRef` so a newer render (or unmount) supersedes an in-flight one.
-  const renderDoc = useCallback(
-    async (doc: pdfjsLib.PDFDocumentProxy, renderScale: number) => {
-      const container = containerRef.current;
-      if (!container) return;
-      const seq = ++renderSeqRef.current;
+  // Minimal link service: open external links in the system browser, ignore
+  // internal destinations (no in-app page router).
+  const linkServiceRef = useRef<any>({
+    externalLinkEnabled: true,
+    externalLinkRel: "noopener noreferrer nofollow",
+    externalLinkTarget: 2, // BLANK
+    isPageVisible: () => true,
+    isPageHidden: () => false,
+    getDestinationHash: () => "#",
+    getAnchorUrl: (hash: string) => hash,
+    navigateTo: () => {},
+    addLinkAttributes: (link: HTMLAnchorElement) => {
+      try {
+        link.rel = "noopener noreferrer nofollow";
+        link.target = "_blank";
+      } catch {
+        /* ignore */
+      }
+    },
+  });
 
-      container.innerHTML = "";
-      const entries: { pageNo: number; canvas: HTMLCanvasElement }[] = [];
+  // Drop a page's rasterization (canvas/text/annotation layers) and cancel its
+  // in-flight render, keeping the placeholder wrapper (sized) so layout holds.
+  const unrenderPage = useCallback((pageNo: number) => {
+    const st = renderedRef.current.get(pageNo);
+    if (!st) return;
+    for (const t of st.tasks) {
+      try {
+        t.cancel();
+      } catch {
+        /* already settled */
+      }
+    }
+    renderedRef.current.delete(pageNo);
+    const wrap = wrapsRef.current.get(pageNo);
+    if (wrap) {
+      for (const n of wrap.querySelectorAll(".pdf-canvas, .textLayer, .annotationLayer")) n.remove();
+      const s = scaleRef.current;
+      wrap.style.width = `${Math.floor(baseDimsRef.current.w * s)}px`;
+      wrap.style.height = `${Math.floor(baseDimsRef.current.h * s)}px`;
+    }
+  }, []);
 
-      // Minimal link service: opens external links in the system browser,
-      // ignores internal destinations (no in-app page router).
-      const linkService = {
-        externalLinkEnabled: true,
-        externalLinkRel: "noopener noreferrer nofollow",
-        externalLinkTarget: 2, // BLANK
-        isPageVisible: () => true,
-        isPageHidden: () => false,
-        getDestinationHash: () => "#",
-        getAnchorUrl: (hash: string) => hash,
-        navigateTo: () => {},
-        addLinkAttributes: (link: HTMLAnchorElement) => {
-          try {
-            link.rel = "noopener noreferrer nofollow";
-            link.target = "_blank";
-          } catch {
-            /* ignore */
-          }
-        },
-      } as any;
+  // Evict rasterized pages farthest from the viewport until under the cap.
+  const enforceCap = useCallback(() => {
+    if (renderedRef.current.size <= MAX_RENDERED_PAGES) return;
+    const visible = visibleRef.current;
+    const rendered = [...renderedRef.current.keys()];
+    const center =
+      visible.size > 0 ? [...visible].reduce((a, b) => a + b, 0) / visible.size : rendered[0];
+    // Evict the off-screen rendered pages farthest from the viewport first.
+    const evictable = rendered
+      .filter((p) => !visible.has(p))
+      .sort((a, b) => Math.abs(b - center) - Math.abs(a - center));
+    for (const p of evictable) {
+      if (renderedRef.current.size <= MAX_RENDERED_PAGES) break;
+      unrenderPage(p);
+    }
+  }, [unrenderPage]);
 
-      for (let p = 1; p <= doc.numPages; p++) {
-        const page = await doc.getPage(p);
-        if (seq !== renderSeqRef.current) return;
-
-        const viewport = page.getViewport({ scale: renderScale });
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        if (!ctx) continue;
-
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = Math.floor(viewport.width * dpr);
-        canvas.height = Math.floor(viewport.height * dpr);
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
-        const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined;
-
-        const wrap = document.createElement("div");
-        wrap.className =
-          "relative mb-4 shadow-md ring-1 ring-black/5 rounded-sm overflow-hidden bg-white";
-        // pdf.js text layer scales positions off this CSS variable.
-        wrap.style.setProperty("--scale-factor", String(renderScale));
-        wrap.appendChild(canvas);
-        container.appendChild(wrap);
-
-        // Selectable text layer (over the canvas).
-        const textDiv = document.createElement("div");
-        textDiv.className = "textLayer";
-        textDiv.style.position = "absolute";
-        textDiv.style.inset = "0";
-        textDiv.style.overflow = "hidden";
-        wrap.appendChild(textDiv);
-
-        // Clickable annotation layer (links, etc.) - top-most so they work.
-        const annotDiv = document.createElement("div");
-        annotDiv.className = "annotationLayer";
-        annotDiv.style.position = "absolute";
-        annotDiv.style.inset = "0";
-        wrap.appendChild(annotDiv);
-
-        // Inverse SyncTeX: Cmd/Ctrl-click → (page, x, y) in bp. Attached to
-        // the wrap (above the text layer) but skipped on actual links.
-        wrap.addEventListener("click", (ev: MouseEvent) => {
-          if (!(ev.metaKey || ev.ctrlKey)) return;
-          if ((ev.target as HTMLElement)?.closest?.("a")) return;
-          const hit = canvasClickToBp(canvas, p, ev);
-          if (hit) onInverseRef.current?.(hit.page, hit.x, hit.y);
-        });
-
-        entries.push({ pageNo: p, canvas });
-
+  // Rasterize one page at the given scale (skips if already current). Idempotent
+  // and cancellation-safe.
+  const renderPage = useCallback(async (pageNo: number, renderScale: number) => {
+    const doc = docRef.current;
+    const wrap = wrapsRef.current.get(pageNo);
+    if (!doc || !wrap) return;
+    const existing = renderedRef.current.get(pageNo);
+    if (existing && existing.renderScale === renderScale) return; // already correct
+    if (existing) {
+      for (const t of existing.tasks) {
         try {
-          await page.render({ canvas, canvasContext: ctx, viewport, transform })
-            .promise;
-        } catch (err) {
-          if (!String(err).includes("RenderingCancelled")) throw err;
-        }
-
-        // Render text selection (best-effort; never blocks the page).
-        try {
-          const textLayer = new pdfjsLib.TextLayer({
-            textContentSource: page.streamTextContent(),
-            container: textDiv,
-            viewport,
-          } as any);
-          await textLayer.render();
-        } catch (err) {
-          if (!String(err).includes("RenderingCancelled")) {
-            /* text selection is a non-fatal enhancement */
-          }
-        }
-
-        // Render links/annotations (best-effort).
-        try {
-          const annotations = await page.getAnnotations({ intent: "display" });
-          if (seq !== renderSeqRef.current) return;
-          const annotationLayer = new pdfjsLib.AnnotationLayer({
-            div: annotDiv,
-            linkService,
-            annotationStorage: doc.annotationStorage,
-            page,
-            viewport,
-          } as any);
-          await annotationLayer.render({
-            viewport,
-            div: annotDiv,
-            annotations,
-            page,
-            linkService,
-            annotationStorage: doc.annotationStorage,
-            renderForms: false,
-            enableScripting: false,
-          } as any);
+          t.cancel();
         } catch {
-          /* annotation rendering is a non-fatal enhancement */
+          /* ignore */
         }
+      }
+      for (const n of wrap.querySelectorAll(".pdf-canvas, .textLayer, .annotationLayer")) n.remove();
+    }
 
-        // Make external links open in the system browser (webview-safe).
+    const seq = loadSeqRef.current;
+    const tasks: pdfjsLib.RenderTask[] = [];
+    renderedRef.current.set(pageNo, { renderScale, tasks });
+
+    try {
+      const page = await doc.getPage(pageNo);
+      if (seq !== loadSeqRef.current || renderedRef.current.get(pageNo)?.tasks !== tasks) return;
+
+      const viewport = page.getViewport({ scale: renderScale });
+      wrap.style.width = `${Math.floor(viewport.width)}px`;
+      wrap.style.height = `${Math.floor(viewport.height)}px`;
+      wrap.style.setProperty("--scale-factor", String(renderScale));
+
+      const dpr = window.devicePixelRatio || 1;
+      const canvas = document.createElement("canvas");
+      canvas.className = "pdf-canvas";
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      canvas.width = Math.floor(viewport.width * dpr);
+      canvas.height = Math.floor(viewport.height * dpr);
+      canvas.style.width = `${Math.floor(viewport.width)}px`;
+      canvas.style.height = `${Math.floor(viewport.height)}px`;
+      const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined;
+      wrap.appendChild(canvas);
+
+      const textDiv = document.createElement("div");
+      textDiv.className = "textLayer";
+      textDiv.style.position = "absolute";
+      textDiv.style.inset = "0";
+      textDiv.style.overflow = "hidden";
+      wrap.appendChild(textDiv);
+
+      const annotDiv = document.createElement("div");
+      annotDiv.className = "annotationLayer";
+      annotDiv.style.position = "absolute";
+      annotDiv.style.inset = "0";
+      wrap.appendChild(annotDiv);
+
+      const renderTask = page.render({ canvas, canvasContext: ctx, viewport, transform });
+      tasks.push(renderTask);
+      try {
+        await renderTask.promise;
+      } catch (err) {
+        if (String(err).includes("RenderingCancelled")) return;
+        throw err;
+      }
+      if (seq !== loadSeqRef.current) return;
+
+      // Selectable text layer (best-effort; never blocks the page).
+      try {
+        const textLayer = new pdfjsLib.TextLayer({
+          textContentSource: page.streamTextContent(),
+          container: textDiv,
+          viewport,
+        } as any);
+        await textLayer.render();
+      } catch {
+        /* text selection is a non-fatal enhancement */
+      }
+
+      // Links/annotations (best-effort).
+      try {
+        const annotations = await page.getAnnotations({ intent: "display" });
+        if (seq !== loadSeqRef.current) return;
+        const annotationLayer = new pdfjsLib.AnnotationLayer({
+          div: annotDiv,
+          linkService: linkServiceRef.current,
+          annotationStorage: doc.annotationStorage,
+          page,
+          viewport,
+        } as any);
+        await annotationLayer.render({
+          viewport,
+          div: annotDiv,
+          annotations,
+          page,
+          linkService: linkServiceRef.current,
+          annotationStorage: doc.annotationStorage,
+          renderForms: false,
+          enableScripting: false,
+        } as any);
         annotDiv.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((a) => {
           const href = a.getAttribute("href") ?? "";
           if (/^(https?:|mailto:|tel:)/i.test(href)) {
@@ -165,20 +222,105 @@ export function PdfViewer({ data, scale, onInverse }: PdfViewerProps) {
             });
           }
         });
+      } catch {
+        /* annotation rendering is a non-fatal enhancement */
       }
+    } catch (err) {
+      if (!String(err).includes("RenderingCancelled")) {
+        const container = containerRef.current;
+        if (container && renderedRef.current.size === 0) {
+          container.textContent = `Failed to render PDF: ${String(err)}`;
+        }
+      }
+      renderedRef.current.delete(pageNo);
+    }
+  }, []);
 
-      if (seq === renderSeqRef.current) {
-        registerPdfView({ pages: entries, scale: renderScale });
-      }
+  // Forward SyncTeX may target an off-screen page; render it on demand.
+  const ensurePageRendered = useCallback(
+    (pageNo: number) => {
+      void renderPage(pageNo, scaleRef.current);
     },
-    []
+    [renderPage]
   );
 
-  // Load (parse) the document when the PDF bytes change — NOT on zoom.
+  // Build the placeholder layout for every page and start observing them.
+  const buildLayout = useCallback(
+    async (doc: pdfjsLib.PDFDocumentProxy) => {
+      const container = containerRef.current;
+      if (!container) return;
+      const seq = loadSeqRef.current;
+
+      container.innerHTML = "";
+      wrapsRef.current.clear();
+      renderedRef.current.clear();
+      visibleRef.current.clear();
+
+      // Base dimensions from page 1 (most PDFs are uniform; per-page rendering
+      // corrects the exact size when a page is rasterized).
+      try {
+        const first = await doc.getPage(1);
+        if (seq !== loadSeqRef.current) return;
+        const vp = first.getViewport({ scale: 1 });
+        baseDimsRef.current = { w: vp.width, h: vp.height };
+      } catch {
+        /* keep the US-Letter default */
+      }
+
+      const s = scaleRef.current;
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            const p = Number((entry.target as HTMLElement).dataset.page);
+            if (!p) continue;
+            if (entry.isIntersecting) {
+              visibleRef.current.add(p);
+              void renderPage(p, scaleRef.current);
+            } else {
+              visibleRef.current.delete(p);
+              unrenderPage(p);
+            }
+          }
+          enforceCap();
+        },
+        { root: container.parentElement ?? null, rootMargin: `${RENDER_MARGIN_PX}px 0px` }
+      );
+      observerRef.current = observer;
+
+      for (let p = 1; p <= doc.numPages; p++) {
+        const wrap = document.createElement("div");
+        wrap.className =
+          "relative mb-4 shadow-md ring-1 ring-black/5 rounded-sm overflow-hidden bg-white";
+        wrap.dataset.page = String(p);
+        wrap.style.width = `${Math.floor(baseDimsRef.current.w * s)}px`;
+        wrap.style.height = `${Math.floor(baseDimsRef.current.h * s)}px`;
+        wrap.style.setProperty("--scale-factor", String(s));
+        wrap.addEventListener("click", (ev: MouseEvent) => {
+          if (!(ev.metaKey || ev.ctrlKey)) return;
+          if ((ev.target as HTMLElement)?.closest?.("a")) return;
+          const hit = pageClickToBp(wrap, p, ev);
+          if (hit) onInverseRef.current?.(hit.page, hit.x, hit.y);
+        });
+        container.appendChild(wrap);
+        wrapsRef.current.set(p, wrap);
+        observer.observe(wrap);
+      }
+
+      registerPdfView({
+        pages: [...wrapsRef.current.entries()].map(([pageNo, el]) => ({ pageNo, el })),
+        scale: s,
+        ensurePageRendered,
+      });
+    },
+    [renderPage, unrenderPage, enforceCap, ensurePageRendered]
+  );
+
+  // Load (parse) the document when the PDF bytes change - NOT on zoom.
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !data) return;
 
+    loadSeqRef.current++;
     let loadingTask: pdfjsLib.PDFDocumentLoadingTask | null = null;
     let cancelled = false;
 
@@ -186,37 +328,65 @@ export function PdfViewer({ data, scale, onInverse }: PdfViewerProps) {
       try {
         loadingTask = pdfjsLib.getDocument({ data: data.slice() });
         const doc = await loadingTask.promise;
-        if (cancelled) return; // cleanup destroys the loading task (and its doc)
+        if (cancelled) return;
         docRef.current = doc;
-        await renderDoc(doc, scale);
+        await buildLayout(doc);
       } catch (e) {
-        if (!cancelled)
-          container.textContent = `Failed to render PDF: ${String(e)}`;
+        if (!cancelled) container.textContent = `Failed to render PDF: ${String(e)}`;
       }
     })();
 
     return () => {
       cancelled = true;
-      renderSeqRef.current++;
+      loadSeqRef.current++;
+      observerRef.current?.disconnect();
+      observerRef.current = null;
+      for (const st of renderedRef.current.values()) {
+        for (const t of st.tasks) {
+          try {
+            t.cancel();
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      renderedRef.current.clear();
+      wrapsRef.current.clear();
+      visibleRef.current.clear();
       clearPdfView();
       docRef.current = null;
-      // Destroying the loading task also tears down its PDFDocumentProxy.
+      if (container) container.innerHTML = "";
       loadingTask?.destroy().catch(() => {});
     };
-    // `scale` is intentionally omitted: zoom is handled by the effect below,
-    // which re-renders the already-parsed document without reloading it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, renderDoc]);
+  }, [data, buildLayout]);
 
-  // Re-render the already-parsed document on zoom, without reloading it.
+  // Re-render on zoom without reloading: resize placeholders, re-rasterize the
+  // pages currently in view at the new scale, and drop off-screen stale ones.
   useEffect(() => {
     const doc = docRef.current;
-    if (!doc) return; // initial render is driven by the load effect above
-    void renderDoc(doc, scale);
-  }, [scale, renderDoc]);
+    if (!doc) return;
+    scaleRef.current = scale;
+    for (const [p, wrap] of wrapsRef.current) {
+      if (!visibleRef.current.has(p)) {
+        wrap.style.width = `${Math.floor(baseDimsRef.current.w * scale)}px`;
+        wrap.style.height = `${Math.floor(baseDimsRef.current.h * scale)}px`;
+        wrap.style.setProperty("--scale-factor", String(scale));
+      }
+    }
+    // Off-screen pages rendered at the old scale are now stale; drop them.
+    for (const p of [...renderedRef.current.keys()]) {
+      if (!visibleRef.current.has(p)) unrenderPage(p);
+    }
+    for (const p of visibleRef.current) void renderPage(p, scale);
+    registerPdfView({
+      pages: [...wrapsRef.current.entries()].map(([pageNo, el]) => ({ pageNo, el })),
+      scale,
+      ensurePageRendered,
+    });
+  }, [scale, renderPage, unrenderPage, ensurePageRendered]);
 
   // Crosshair cursor only while ⌘/Ctrl is held - the SyncTeX-click hint.
-  // Otherwise the text layer shows the native I-beam and links show the hand.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;

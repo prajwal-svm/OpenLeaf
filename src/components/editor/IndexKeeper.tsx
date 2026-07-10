@@ -16,9 +16,20 @@ export function IndexKeeper() {
   const tree = useFilesStore((s) => s.tree);
   const content = useActiveContent();
 
+  // Drop the previous project's symbols the moment the project changes.
   useEffect(() => {
     useIndexStore.getState().reset();
-    if (projectId && tree.length > 0) void useIndexStore.getState().rebuildFromDisk();
+  }, [projectId]);
+
+  useEffect(() => {
+    // `tree` identity changes on every refreshTree (create/delete/rename, and
+    // each AI applyExternalWrite), so debounce the full-disk rebuild: a burst of
+    // tree updates (e.g. an AI edit touching many files) coalesces into one
+    // rebuild instead of re-reading every .tex/.bib from disk once per update.
+    // Not clearing the index here avoids a go-to-def gap while editing.
+    if (!projectId || tree.length === 0) return;
+    const t = setTimeout(() => void useIndexStore.getState().rebuildFromDisk(), 200);
+    return () => clearTimeout(t);
   }, [projectId, tree]);
 
   useEffect(() => {

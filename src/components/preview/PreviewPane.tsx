@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, Contrast, FileText, Maximize, Minus, Play,
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { PdfViewer } from "@/components/pdf/PdfViewer";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LogPane } from "@/components/editor/LogPane";
 import { useCompileStore } from "@/store/compile";
 import { useFilesStore } from "@/store/files";
@@ -190,7 +191,15 @@ export function PreviewPane() {
             className="h-full overflow-auto bg-sidebar"
             style={inverted ? { filter: "invert(1) hue-rotate(180deg)" } : undefined}
           >
-            <PdfViewer data={pdfBytes} scale={scale} onInverse={inverseFromClick} />
+            <ErrorBoundary
+              fallback={
+                <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+                  The PDF preview crashed. Recompile to try again.
+                </div>
+              }
+            >
+              <PdfViewer data={pdfBytes} scale={scale} onInverse={inverseFromClick} />
+            </ErrorBoundary>
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 bg-sidebar px-6 text-center text-muted-foreground">
@@ -313,7 +322,15 @@ function PresentationView({
         <X className="size-5" />
       </button>
       <div className="min-h-0 flex-1 overflow-auto">
-        <PdfViewer data={data} scale={1.25} />
+        <ErrorBoundary
+          fallback={
+            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-white/70">
+              The PDF preview crashed. Exit and recompile to try again.
+            </div>
+          }
+        >
+          <PdfViewer data={data} scale={1.25} />
+        </ErrorBoundary>
       </div>
     </div>
   );

@@ -69,15 +69,18 @@ export function PreflightPanel() {
   const setEnabled = usePreflightStore((s) => s.setEnabled);
   const setOpen = usePreflightStore((s) => s.setOpen);
 
-  // Subscribe only to the active document's content (a string), not the whole map.
-  const source = useFilesStore((s) => (s.activePath ? s.files[s.activePath]?.content ?? "" : ""));
-
-  // Pre-enable and expand the check that matches the document type.
+  // Pre-enable and expand the check that matches the document type. Key this on
+  // the active PATH (not its content) and read a content snapshot imperatively,
+  // so typing does not re-render this whole panel or re-run the two whole-document
+  // regex scans in `looksLikeResumeSource` on every keystroke. The doc type is
+  // stable per file; the user can still toggle checks manually.
+  const activePath = useFilesStore((s) => s.activePath);
   const suggested = useMemo<Flags>(() => {
-    const resume = looksLikeResumeSource(source);
+    const src = activePath ? useFilesStore.getState().files[activePath]?.content ?? "" : "";
+    const resume = looksLikeResumeSource(src);
     // Resume: ATS. Otherwise: accessibility and integrity, the paper concerns.
     return { ats: resume, a11y: !resume, refs: !resume };
-  }, [source]);
+  }, [activePath]);
   const enabled = storedEnabled ?? suggested;
   const expanded = storedOpen ?? suggested;
   const [infoOpen, setInfoOpen] = useState(false);

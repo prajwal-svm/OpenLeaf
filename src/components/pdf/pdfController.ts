@@ -3,38 +3,48 @@ import { logError } from "@/lib/log";
 
 interface PageEntry {
   pageNo: number;
-  canvas: HTMLCanvasElement;
+  /** The page's wrapper element. Always present (even before the page is
+   *  rasterized), so SyncTeX positioning works against a virtualized page. */
+  el: HTMLElement;
 }
 
 let pages: PageEntry[] = [];
 let scale = 1;
+/** Ask the viewer to rasterize a page now (used by forward SyncTeX to a page
+ *  that virtualization has not rendered yet). Set by the active PdfViewer. */
+let ensurePageRendered: ((pageNo: number) => void) | null = null;
 
 export function registerPdfView(state: {
   pages: PageEntry[];
   scale: number;
+  ensurePageRendered?: (pageNo: number) => void;
 }) {
   pages = state.pages;
   scale = state.scale;
+  ensurePageRendered = state.ensurePageRendered ?? null;
 }
 
 export function clearPdfView() {
   pages = [];
+  ensurePageRendered = null;
 }
 
 /** Forward SyncTeX: scroll the PDF to the rect's page and flash a highlight. */
 export function gotoRect(rect: SynctexRect) {
   const entry = pages.find((p) => p.pageNo === rect.page);
-  const canvas = entry?.canvas;
-  if (!canvas) {
+  const wrap = entry?.el;
+  if (!wrap) {
     void logError(
       "synctex forward",
-      `no rendered canvas for page ${rect.page} (have pages: ${pages.map((p) => p.pageNo).join(",") || "none"})`
+      `no page element for page ${rect.page} (have pages: ${pages.map((p) => p.pageNo).join(",") || "none"})`
     );
     return;
   }
 
-  const wrap = canvas.parentElement;
-  if (!wrap) return;
+  // The page may not be rasterized yet (virtualized); ask the viewer to render
+  // it. Positioning below is geometric (off the wrapper), so it works regardless.
+  ensurePageRendered?.(rect.page);
+
   wrap.style.position = "relative";
 
   // Remove any previous highlight.
@@ -73,15 +83,15 @@ export function gotoRect(rect: SynctexRect) {
 }
 
 /**
- * Inverse SyncTeX: given a Cmd/Ctrl-click on a rendered page canvas, compute
+ * Inverse SyncTeX: given a Cmd/Ctrl-click on a page's wrapper element, compute
  * the (page, x, y) in PDF bp.
  */
-export function canvasClickToBp(
-  canvas: HTMLCanvasElement,
+export function pageClickToBp(
+  el: HTMLElement,
   pageNo: number,
   e: { clientX: number; clientY: number }
 ): { page: number; x: number; y: number } | null {
-  const rect = canvas.getBoundingClientRect();
+  const rect = el.getBoundingClientRect();
   const x = (e.clientX - rect.left) / scale;
   const y = (e.clientY - rect.top) / scale;
   if (x < 0 || y < 0 || x > rect.width / scale || y > rect.height / scale) {

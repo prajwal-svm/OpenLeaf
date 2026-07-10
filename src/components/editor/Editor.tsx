@@ -5,6 +5,7 @@ import { EditorContextMenu } from "./EditorContextMenu";
 import { EditorToolbar } from "./EditorToolbar";
 import { DiffView } from "./diff/DiffView";
 import { PdfViewer } from "@/components/pdf/PdfViewer";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { wrapSelection } from "./cm/controller";
 import { useFilesStore } from "@/store/files";
 import { useDiffStore, diffKey } from "@/store/diff";
@@ -14,6 +15,18 @@ import { cn } from "@/lib/utils";
 function basename(p: string) {
   const parts = p.split("/");
   return parts[parts.length - 1];
+}
+
+/**
+ * The unsaved-changes dot for one tab. Subscribes to just that file's `dirty`
+ * boolean so it re-renders only when the flag flips, instead of making the whole
+ * tab bar re-render on every keystroke (which subscribing to the `files` map
+ * would, since it is rebuilt on each edit).
+ */
+function DirtyDot({ path }: { path: string }) {
+  const dirty = useFilesStore((s) => s.files[path]?.dirty ?? false);
+  if (!dirty) return null;
+  return <span className="size-1.5 rounded-full bg-primary" />;
 }
 
 function PdfFileView({ projectId, path }: { projectId: string; path: string }) {
@@ -42,7 +55,6 @@ export function Editor() {
   const activePath = useFilesStore((s) => s.activePath);
   const setActive = useFilesStore((s) => s.setActive);
   const closeTab = useFilesStore((s) => s.closeTab);
-  const dirtyMap = useFilesStore((s) => s.files);
   const diffs = useDiffStore((s) => s.diffs);
   const activeKey = useDiffStore((s) => s.activeKey);
   const setActiveDiff = useDiffStore((s) => s.setActiveDiff);
@@ -53,6 +65,11 @@ export function Editor() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
+      // Only act when the CodeMirror editor itself is focused. Otherwise Cmd/Ctrl
+      // +B/I typed in a text input, the AI chat box, or any other field would
+      // silently mutate the document.
+      const el = document.activeElement as HTMLElement | null;
+      if (!el?.closest(".cm-editor")) return;
       const k = e.key.toLowerCase();
       if (k === "b") {
         e.preventDefault();
@@ -79,12 +96,8 @@ export function Editor() {
           <span className="px-2 text-xs text-muted-foreground">No file open</span>
         )}
         {openTabs.map((path) => (
-          <button
+          <div
             key={path}
-            onClick={() => {
-              clearActiveDiff();
-              setActive(path);
-            }}
             className={cn(
               "group flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs",
               path === activePath && !diffFocused
@@ -92,13 +105,20 @@ export function Editor() {
                 : "text-muted-foreground hover:bg-accent"
             )}
           >
-            {basename(path)}
-            {dirtyMap[path]?.dirty && (
-              <span className="size-1.5 rounded-full bg-primary" />
-            )}
-            <span
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
+              onClick={() => {
+                clearActiveDiff();
+                setActive(path);
+              }}
+              className="flex items-center gap-1.5"
+            >
+              {basename(path)}
+              <DirtyDot path={path} />
+            </button>
+            <button
+              type="button"
+              aria-label={`Close ${basename(path)}`}
               onClick={(e) => {
                 e.stopPropagation();
                 closeTab(path);
@@ -106,27 +126,32 @@ export function Editor() {
               className="ml-0.5 cursor-pointer rounded p-0.5 hover:bg-accent"
             >
               <X className="size-3" />
-            </span>
-          </button>
+            </button>
+          </div>
         ))}
         {diffs.map((d) => {
           const key = diffKey(d);
           return (
-            <button
+            <div
               key={key}
-              onClick={() => setActiveDiff(key)}
               className={cn(
                 "group flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs",
                 activeKey === key ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-accent"
               )}
             >
-              {basename(d.path)}
-              <span className="text-muted-foreground">
-                ({d.side === "staged" ? "Index" : "Working Tree"})
-              </span>
-              <span
-                role="button"
-                tabIndex={0}
+              <button
+                type="button"
+                onClick={() => setActiveDiff(key)}
+                className="flex items-center gap-1.5"
+              >
+                {basename(d.path)}
+                <span className="text-muted-foreground">
+                  ({d.side === "staged" ? "Index" : "Working Tree"})
+                </span>
+              </button>
+              <button
+                type="button"
+                aria-label={`Close diff ${basename(d.path)}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   closeDiff(key);
@@ -134,14 +159,22 @@ export function Editor() {
                 className="ml-0.5 cursor-pointer rounded p-0.5 hover:bg-accent"
               >
                 <X className="size-3" />
-              </span>
-            </button>
+              </button>
+            </div>
           );
         })}
       </div>
       {/* Editor body */}
       {diffFocused ? (
-        <DiffView />
+        <ErrorBoundary
+          fallback={
+            <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+              The diff view crashed. Close this tab and try again.
+            </div>
+          }
+        >
+          <DiffView />
+        </ErrorBoundary>
       ) : hasOpenFile ? (
         <>
           {isTexFile && (

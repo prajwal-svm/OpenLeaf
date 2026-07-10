@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { ThemeProvider } from "@/lib/theme";
 import { TopToolbar } from "@/components/layout/TopToolbar";
@@ -101,6 +101,7 @@ export default function App() {
   const projectId = useFilesStore((s) => s.projectId);
   const refreshProjects = useFilesStore((s) => s.refreshProjects);
   const activeContent = useActiveContent();
+  const activePath = useFilesStore((s) => s.activePath);
   const recompile = useCompileStore((s) => s.recompile);
   const autoCompile = useCompileStore((s) => s.autoCompile);
   const viewMode = useSettingsStore((s) => s.viewMode);
@@ -197,14 +198,38 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [recompile]);
 
-  // Auto-compile: debounced, skipped while a compile is running.
+  // Auto-compile: debounced on real edits. `activeContent` also changes when you
+  // merely switch tabs or open a project, so skip those (they aren't edits) by
+  // only compiling when the active file is unchanged from the previous render.
+  const autoCompilePathRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!autoCompile || !projectId) return;
-    const t = setTimeout(() => {
-      if (useCompileStore.getState().status !== "compiling") void recompile();
-    }, AUTO_COMPILE_DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [activeContent, autoCompile, recompile, projectId]);
+    if (!autoCompile || !projectId) {
+      autoCompilePathRef.current = activePath;
+      return;
+    }
+    // Tab switch / project open: the path changed, not the content. Don't compile.
+    if (autoCompilePathRef.current !== activePath) {
+      autoCompilePathRef.current = activePath;
+      return;
+    }
+    let timer: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+    const attempt = () => {
+      if (cancelled) return;
+      // If a compile is in flight, retry shortly so the newest edits still get
+      // compiled instead of being silently skipped.
+      if (useCompileStore.getState().status === "compiling") {
+        timer = setTimeout(attempt, 500);
+        return;
+      }
+      void recompile();
+    };
+    timer = setTimeout(attempt, AUTO_COMPILE_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [activeContent, activePath, autoCompile, recompile, projectId]);
 
   if (!projectId) {
     return (
