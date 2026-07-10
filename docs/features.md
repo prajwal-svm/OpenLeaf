@@ -39,10 +39,13 @@ OpenLeaf understands your whole project, not just the open file.
 
 ## PDF preview (pdf.js)
 
-- Continuous scroll, zoom in and out, fit-to-width, fit-to-height, page navigation, and fullscreen.
+- Continuous scroll with single-page or two-page (spread) layouts, switchable from the toolbar like a desktop PDF reader.
+- Zoom in and out with the buttons or a trackpad pinch, plus fit-to-width and fit-to-height.
+- Page navigation in the toolbar: the current page and total ("6 of 100"), previous and next, and a jump-to-page box.
 - The viewer is virtualized: it only renders the pages near your viewport, so it stays smooth and light on memory even for documents hundreds of pages long, like a thesis or a book.
+- Presentation (fullscreen) mode, and an invert-colors toggle for late-night reading.
 - Download PDF (with a custom filename) and download source as a `.zip`.
-- SyncTeX overlay for bidirectional source↔PDF navigation.
+- Bidirectional SyncTeX: Cmd/Ctrl-click a word in the PDF to land on that exact word in the source, or jump from the cursor to the matching spot in the PDF.
 
 ## Preflight: ATS and accessibility checks
 
@@ -93,7 +96,7 @@ a readiness aid, not a formal accessibility certification.
 
 - Library home lists all projects with thumbnails, last-edited time, and export history.
 - Templates: Blank, One-Page Resume, and IEEE Paper.
-- Source tree: create, rename, delete, duplicate, drag-drop, upload, and pick the main document.
+- Source tree: create files and folders (nested to any depth), rename, delete, and duplicate (files and whole folders). Right-click a folder to add a file or folder inside it, and drag files and folders in and out of folders to reorganize. Upload files, and pick the main document.
 - Multi-file support for `\input`, images (PNG/JPG/PDF/EPS), `.bib`, and editor tabs.
 - Autosave writes your changes to disk shortly after you stop typing.
 

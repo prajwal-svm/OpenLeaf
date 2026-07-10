@@ -136,6 +136,21 @@ It handles multi-file projects, `\input` trees, `.bib` bibliographies, figures, 
 
 <br/>
 
+## Accessible and ATS-ready, checked before you submit
+
+Most LaTeX looks fine to a human and falls apart for a machine reader. A two-column layout reads across in a screen reader. An icon font hides your email from a resume parser. An untagged PDF fails Section 508 and PDF-UA outright. OpenLeaf catches all of this while you write, not after a rejection.
+
+Open the Preflight panel and it scores your document out of 100 for the two audiences that fail on the same defects: applicant-tracking systems (ATS) and screen readers. It reads your source and your compiled PDF and shows you exactly what a machine sees.
+
+- **ATS readiness.** A simulation of what an applicant-tracking system pulls from your resume PDF: name, email, phone, links, and which standard sections (Experience, Education, Skills) it detected, so you catch a section a parser can't see before a recruiter does.
+- **Accessibility.** A Section 508 / PDF-UA verdict with a full tag-tree audit, plus source checks for multi-column layouts, missing image alt text, skipped heading levels, undescriptive links, and missing document language or title.
+- **What the reader sees.** A plain-text preview of your compiled PDF in reading order, the exact thing a screen reader or parser gets.
+- **One-click accessible export.** OpenLeaf rewrites your source with the setup a tagging engine needs and shows every change first. Compile with LuaLaTeX (use a TeX Live you already have, or install TinyTeX on demand, no admin rights) to produce a tagged, Section 508 / PDF-UA oriented PDF, then verify it right there.
+
+We don't know another LaTeX editor that checks this for you. See [Preflight in the docs](docs/features.md#preflight-ats-and-accessibility-checks).
+
+<br/>
+
 ## AI that understands LaTeX
 
 The assistant can read your files, compile them, look at the resulting PDF, edit the source, and then check that its edit actually worked.
@@ -174,9 +189,9 @@ The full list. Everything here runs on your machine. For the detailed tour, see 
 - Tectonic (XeTeX) runs as a bundled sidecar, producing ATS-clean output with embedded subset fonts
 - Debounced auto-compile (~2.5s) plus manual recompile with `⌘↵`
 - Offline mode compiles with `--only-cached` and never touches the network
-- pdf.js viewer with continuous scroll, zoom, fit-to-width/height, page navigation, and fullscreen
-- Bidirectional SyncTeX: Cmd/Ctrl-click the PDF to land on the source line, or jump source-to-PDF with `⌘⇧J`
-- The viewer is virtualized, so it stays smooth on documents hundreds of pages long
+- pdf.js viewer with continuous scroll, single-page or two-page (spread) layouts, zoom (buttons or trackpad pinch), fit-to-width/height, page navigation (current/total, prev/next, jump-to), presentation mode, and an invert-colors toggle
+- Bidirectional SyncTeX: Cmd/Ctrl-click a word in the PDF to land on that exact word in the source, or jump source-to-PDF with `⌘⇧J`
+- The viewer is virtualized, so it stays smooth on documents hundreds of pages long (a thesis or a book)
 
 **Preflight: ATS and accessibility checks**
 - Two scores out of 100: ATS readiness and accessibility
@@ -190,7 +205,7 @@ The full list. Everything here runs on your machine. For the detailed tour, see 
 **Projects, files, and history**
 - Library home with thumbnails, last-edited time, and export history
 - Templates: Blank, One-Page Resume, and IEEE Paper
-- Source tree: create, rename, delete, duplicate, drag-drop, upload, and set the main document
+- Source tree: create files and folders (nested to any depth), rename, delete, duplicate (files and whole folders), and reorganize by drag and drop; right-click a folder to add a file or folder inside it; upload files and set the main document
 - Multi-file support for `\input`, images (PNG/JPG/PDF/EPS), and `.bib`, with editor tabs
 - Autosave to disk shortly after you stop typing
 - Every project is a Git repo with auto-commit on save, a full history view, side-by-side diffs, and one-click restore
@@ -413,6 +428,7 @@ Have an idea? [Open a discussion](https://github.com/prajwal-svm/OpenLeaf/discus
 | [Build from source](docs/install.md) | For developers: clone, install deps, run |
 | [Getting started](docs/getting-started.md) | First project to first PDF in a couple of minutes |
 | [Features](docs/features.md) | The full tour |
+| [Accessibility & ATS](docs/features.md#preflight-ats-and-accessibility-checks) | Section 508 / PDF-UA and resume-parser checks, before you submit |
 | [AI assistant](docs/ai-assistant.md) | Connect a model, or go local with Ollama |
 | [GitHub sync](docs/github-sync.md) | Back up and sync across machines |
 | [Keyboard shortcuts](docs/keyboard-shortcuts.md) | The ones worth memorizing |
