@@ -47,7 +47,10 @@ pub fn read_config() -> Result<AppConfig, String> {
         return Ok(AppConfig::default());
     }
     let s = std::fs::read_to_string(&p).map_err(|e| e.to_string())?;
-    Ok(serde_json::from_str(&s).unwrap_or_default())
+    // A malformed config must NOT silently degrade to an empty AppConfig: a later
+    // set_config would then persist the blank over a good GitHub token. Surface
+    // the corruption so callers refuse to overwrite.
+    serde_json::from_str(&s).map_err(|e| format!("config.json is corrupt: {e}"))
 }
 
 pub fn write_config(config: &AppConfig) -> Result<(), String> {

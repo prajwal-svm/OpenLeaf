@@ -149,9 +149,14 @@ export function createOpenLeafTools(opts?: { confirm?: ConfirmFn }) {
             return { error: "find string not found in file", path };
           }
           const count = replace_all ? original.split(find).length - 1 : 1;
+          // Both branches replace literally: String.prototype.replace with a
+          // string pattern would interpret `$$`, `$&`, `` $` ``, `$'`, `$1`.. in
+          // the AI-supplied `replace` text and corrupt LaTeX (e.g. `$$` -> `$`).
+          // Splice the first occurrence in by index instead.
+          const idx = original.indexOf(find);
           const updated = replace_all
             ? original.split(find).join(replace)
-            : original.replace(find, replace);
+            : original.slice(0, idx) + replace + original.slice(idx + find.length);
           // Ask for approval with a concrete before/after diff (nothing has been
           // written yet; declining leaves the file untouched).
           if (confirm && !(await confirm({

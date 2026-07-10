@@ -1,18 +1,23 @@
 import { create } from "zustand";
-import { buildIndex } from "@/lib/index/build";
-import type { ProjectIndex } from "@/lib/index/types";
+import { assembleIndex } from "@/lib/index/build";
+import { parseFile } from "@/lib/index/parse-file";
+import type { FileSymbols, ProjectIndex } from "@/lib/index/types";
 import { useFilesStore } from "@/store/files";
 import { readFileContent } from "@/lib/tauri";
 
 /**
  * Live whole-project index. Built from an in-memory text cache so edits re-index
- * with pure JS (no disk IO): `updateFile` swaps one cached string and rebuilds.
- * `rebuildFromDisk` (project switch) reads every `.tex`/`.bib` once.
+ * with pure JS (no disk IO). `updateFile` re-parses only the changed file (the
+ * expensive per-file regex work) and reassembles, instead of re-parsing every
+ * file on every keystroke. `rebuildFromDisk` (project switch) reads every
+ * `.tex`/`.bib` once.
  */
 interface IndexStore {
   index: ProjectIndex | null;
   /** Path -> text the current index was built from (rename applies against this). */
   texts: Record<string, string>;
+  /** Path -> cached parse result, so unchanged files are not re-parsed. */
+  parsed: Record<string, FileSymbols>;
   building: boolean;
   rebuildFromDisk: () => Promise<void>;
   /** Update one file's text and re-index (pure, synchronous). */
@@ -22,12 +27,18 @@ interface IndexStore {
 
 const isIndexable = (p: string) => p.endsWith(".tex") || p.endsWith(".bib");
 
+// Bumped on every rebuild so a rebuild that finishes after the project switched
+// can detect it is stale and not install the old project's symbols.
+let rebuildSeq = 0;
+
 export const useIndexStore = create<IndexStore>((set, get) => ({
   index: null,
   texts: {},
+  parsed: {},
   building: false,
 
   rebuildFromDisk: async () => {
+    const seq = ++rebuildSeq;
     const files = useFilesStore.getState();
     const id = files.projectId;
     if (!id) return;
@@ -47,9 +58,14 @@ export const useIndexStore = create<IndexStore>((set, get) => ({
           }
         }
       }
-      set({ texts, index: buildIndex(texts), building: false });
+      // A newer rebuild started (or the project switched) while we were reading
+      // from disk: discard this stale result.
+      if (seq !== rebuildSeq || useFilesStore.getState().projectId !== id) return;
+      const parsed: Record<string, FileSymbols> = {};
+      for (const [path, text] of Object.entries(texts)) parsed[path] = parseFile(path, text);
+      set({ texts, parsed, index: assembleIndex(parsed, texts), building: false });
     } catch {
-      set({ building: false });
+      if (seq === rebuildSeq) set({ building: false });
     }
   },
 
@@ -59,8 +75,10 @@ export const useIndexStore = create<IndexStore>((set, get) => ({
     // Skip the rebuild when nothing changed (go-to-def/click call this to be safe).
     if (cur.texts[path] === text && cur.index) return;
     const texts = { ...cur.texts, [path]: text };
-    set({ texts, index: buildIndex(texts) });
+    // Re-parse only this file; reuse every other file's cached parse.
+    const parsed = { ...cur.parsed, [path]: parseFile(path, text) };
+    set({ texts, parsed, index: assembleIndex(parsed, texts) });
   },
 
-  reset: () => set({ index: null, texts: {}, building: false }),
+  reset: () => set({ index: null, texts: {}, parsed: {}, building: false }),
 }));

@@ -44,6 +44,10 @@ function buildRefsContext(files: ReturnType<typeof useFilesStore.getState>): Ref
   return { bibKeys, definedLabels, bibLoaded, projectFiles, duplicateDois };
 }
 
+// Bumped on every run so a preflight pass that finishes after the project was
+// switched can detect it is stale and not paint the old report into the new one.
+let preflightSeq = 0;
+
 export type CheckId = "ats" | "a11y" | "refs";
 export type CheckFlags = Record<CheckId, boolean>;
 const NO_FLAGS: CheckFlags = { ats: false, a11y: false, refs: false };
@@ -89,6 +93,9 @@ export const usePreflightStore = create<PreflightStore>((set) => ({
     set({ report: null, pageText: [], running: false, showReader: false, error: null, ran: NO_FLAGS, enabled: null, open: null }),
 
   run: async () => {
+    const seq = ++preflightSeq;
+    const pid = useFilesStore.getState().projectId;
+    const stale = () => seq !== preflightSeq || useFilesStore.getState().projectId !== pid;
     set({ running: true, error: null });
     try {
       const files = useFilesStore.getState();
@@ -102,6 +109,7 @@ export const usePreflightStore = create<PreflightStore>((set) => ({
       const bytes = useCompileStore.getState().pdfBytes;
       if (bytes) {
         const ex = await extractForPreflight(bytes);
+        if (stale()) return; // project switched during PDF extraction
         const report = runPreflight({
           source,
           pages: ex.pages,
@@ -113,10 +121,11 @@ export const usePreflightStore = create<PreflightStore>((set) => ({
         set({ report, pageText: ex.pageText, running: false });
       } else {
         const report = runPreflight({ source, refs });
+        if (stale()) return;
         set({ report, pageText: [], running: false });
       }
     } catch (e) {
-      set({ running: false, error: String(e) });
+      if (!stale()) set({ running: false, error: String(e) });
       void import("@/lib/log").then(({ logError }) => logError("preflight", e));
     }
   },

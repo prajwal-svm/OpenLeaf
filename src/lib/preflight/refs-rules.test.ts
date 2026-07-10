@@ -91,6 +91,24 @@ describe("missing assets", () => {
   });
 });
 
+describe("comment masking", () => {
+  it("does not flag a commented-out undefined citation", () => {
+    expect(has("% \\cite{smith21}", ctx({ bibKeys: [] }), "refs-undefined-cite")).toBe(false);
+  });
+  it("does not flag a commented-out undefined reference", () => {
+    expect(has("% \\ref{fig:2}", ctx(), "refs-undefined-ref")).toBe(false);
+  });
+  it("treats an escaped percent as literal, so a later cite is still checked", () => {
+    expect(has("\\% literal \\cite{smith21}", ctx({ bibKeys: [] }), "refs-undefined-cite")).toBe(true);
+  });
+  it("keeps source offsets stable after masking", () => {
+    const out = runRefsRules("% note\n\\ref{missing}", ctx());
+    const f = out.find((x) => x.id === "refs-undefined-ref");
+    expect(f).toBeDefined();
+    expect("% note\n\\ref{missing}".slice(f!.from, f!.to)).toBe("\\ref{missing}");
+  });
+});
+
 describe("finding shape", () => {
   it("tags findings with the refs lens and a source range", () => {
     const out = runRefsRules("\\ref{missing}", ctx());

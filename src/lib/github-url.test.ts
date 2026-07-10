@@ -12,6 +12,18 @@ describe("toGithubWebUrl", () => {
     );
   });
 
+  it("drops the port from ssh:// remotes with an explicit port", () => {
+    expect(toGithubWebUrl("ssh://git@github.com:22/owner/repo.git")).toBe(
+      "https://github.com/owner/repo",
+    );
+  });
+
+  it("handles ssh:// remotes without a user", () => {
+    expect(toGithubWebUrl("ssh://github.com/owner/repo.git")).toBe(
+      "https://github.com/owner/repo",
+    );
+  });
+
   it("strips .git and embedded credentials from https remotes", () => {
     expect(toGithubWebUrl("https://x-access-token:tok@github.com/owner/repo.git")).toBe(
       "https://github.com/owner/repo",

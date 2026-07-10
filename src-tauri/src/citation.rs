@@ -7,6 +7,7 @@ const UA: &str = "OpenLeaf/0.2 (https://github.com/prajwal-svm/OpenLeaf; citatio
 fn client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent(UA)
+        .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| e.to_string())
 }

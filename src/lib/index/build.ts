@@ -1,4 +1,4 @@
-import type { DefKind, Edit, ProjectIndex, RenamePlan, Sym, UseKind } from "./types";
+import type { DefKind, Edit, FileSymbols, ProjectIndex, RenamePlan, Sym, UseKind } from "./types";
 import { parseFile, maskComments } from "./parse-file";
 
 /**
@@ -46,12 +46,27 @@ function lineCounter(text: string) {
 }
 
 export function buildIndex(files: Record<string, string>): ProjectIndex {
+  const parsed: Record<string, FileSymbols> = {};
+  for (const [path, text] of Object.entries(files)) parsed[path] = parseFile(path, text);
+  return assembleIndex(parsed, files);
+}
+
+/**
+ * Assemble a ProjectIndex from already-parsed per-file symbols plus the raw
+ * texts (needed for the project-wide macro-use pass). Split out from buildIndex
+ * so callers can cache `parseFile` results and re-parse only the file that
+ * changed instead of the whole project on every keystroke.
+ */
+export function assembleIndex(
+  parsedByPath: Record<string, FileSymbols>,
+  files: Record<string, string>,
+): ProjectIndex {
   const defs: Sym[] = [];
   const uses: Sym[] = [];
 
-  // Parse each file; add a `file` def node per path (for inputedge resolution).
-  for (const [path, text] of Object.entries(files)) {
-    const r = parseFile(path, text);
+  // Collect each file's symbols; add a `file` def node per path (for inputedge
+  // resolution).
+  for (const [path, r] of Object.entries(parsedByPath)) {
     defs.push(...r.defs);
     uses.push(...r.uses);
     defs.push({ kind: "file", name: path, file: path, line: 1, from: 0, to: 0, nameFrom: 0, nameTo: 0 });

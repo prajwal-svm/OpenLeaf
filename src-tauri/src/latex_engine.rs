@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::paths;
+use crate::state::AppState;
 
 /// rstudio/tinytex-releases scheme "1" (the default set, ~100MB). The exact tag
 /// should be validated on a real machine; the manual-install fallback covers
@@ -212,8 +213,41 @@ fn extract_all(archive: &Path, is_targz: bool, dest_dir: &Path) -> Result<(), St
     if is_targz {
         let gz = flate2::read::GzDecoder::new(file);
         let mut ar = tar::Archive::new(gz);
-        ar.unpack(dest_dir)
-            .map_err(|e| format!("extract failed: {e}"))?;
+        // Unpack entry-by-entry rather than `ar.unpack(dest_dir)` so a malicious
+        // archive can't escape `dest_dir`. We reject absolute / `..` paths and
+        // SKIP symlink and hardlink members entirely (a planted link could later
+        // redirect a write outside the destination); only regular files and
+        // directories are extracted.
+        for entry in ar.entries().map_err(|e| e.to_string())? {
+            let mut entry = entry.map_err(|e| e.to_string())?;
+            let entry_type = entry.header().entry_type();
+            if entry_type.is_symlink() || entry_type.is_hard_link() {
+                continue;
+            }
+            let rel = entry.path().map_err(|e| e.to_string())?.into_owned();
+            if rel.is_absolute()
+                || rel.components().any(|c| {
+                    matches!(
+                        c,
+                        std::path::Component::ParentDir
+                            | std::path::Component::RootDir
+                            | std::path::Component::Prefix(_)
+                    )
+                })
+            {
+                continue; // skip unsafe paths
+            }
+            let out = dest_dir.join(&rel);
+            if entry_type.is_dir() {
+                std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+            } else {
+                if let Some(parent) = out.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                }
+                let mut o = std::fs::File::create(&out).map_err(|e| e.to_string())?;
+                std::io::copy(&mut entry, &mut o).map_err(|e| e.to_string())?;
+            }
+        }
     } else {
         let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
         for i in 0..zip.len() {
@@ -276,7 +310,15 @@ pub async fn install_tinytex(app: tauri::AppHandle) -> Result<EngineInfo, String
     file.flush().map_err(|e| e.to_string())?;
     drop(file);
 
-    let extracted = extract_all(&tmp, is_targz, &root);
+    // The archive is ~100MB; extract off the async runtime so it doesn't block
+    // the webview UI while unpacking.
+    let tmp_extract = tmp.clone();
+    let root_extract = root.clone();
+    let extracted = tauri::async_runtime::spawn_blocking(move || {
+        extract_all(&tmp_extract, is_targz, &root_extract)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
     let _ = std::fs::remove_file(&tmp);
     extracted?;
 
@@ -292,12 +334,16 @@ pub async fn install_tinytex(app: tauri::AppHandle) -> Result<EngineInfo, String
 
 /// Remove our TinyTeX install to free disk space.
 #[tauri::command]
-pub fn delete_tinytex() -> Result<(), String> {
-    let root = tinytex_root()?;
-    if root.exists() {
-        std::fs::remove_dir_all(&root).map_err(|e| format!("failed to remove TinyTeX: {e}"))?;
-    }
-    Ok(())
+pub async fn delete_tinytex() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| -> Result<(), String> {
+        let root = tinytex_root()?;
+        if root.exists() {
+            std::fs::remove_dir_all(&root).map_err(|e| format!("failed to remove TinyTeX: {e}"))?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn tlmgr_path() -> Result<String, String> {
@@ -397,9 +443,17 @@ pub struct TaggedCompileResult {
 /// verifier pick it up unchanged. Runs twice to resolve references.
 #[tauri::command]
 pub async fn compile_tagged(
+    state: tauri::State<'_, AppState>,
     project_id: String,
     main_doc: String,
 ) -> Result<TaggedCompileResult, String> {
+    // This writes the same build outputs (`_openleaf_entry.pdf`, etc.) as
+    // `compile_project`, which serializes on `compile_lock`. Hold that same lock
+    // for the whole run so a Tectonic and a LuaLaTeX compile can't clobber each
+    // other's outputs. The guard is held until the end of this function (across
+    // the spawn_blocking await below).
+    let _guard = state.compile_lock.lock().await;
+
     let engine = find_engine();
     let lualatex = engine
         .lualatex
@@ -415,35 +469,47 @@ pub async fn compile_tagged(
     std::fs::create_dir_all(&build_dir).map_err(|e| e.to_string())?;
 
     let out_dir = build_dir.to_string_lossy().to_string();
-    let mut log = String::new();
-    let mut success = false;
-    for pass in 0..2 {
-        let out = Command::new(&lualatex)
-            .arg("-interaction=nonstopmode")
-            .arg("-file-line-error")
-            .arg(format!("-output-directory={out_dir}"))
-            .arg(format!("-jobname={}", paths::ENTRY_STEM))
-            .arg("--")
-            .arg(&main_doc)
-            .current_dir(&project_dir)
-            .output()
-            .map_err(|e| format!("failed to run lualatex: {e}"))?;
-        log = format!(
-            "{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        );
-        success = out.status.success();
-        if !success && pass == 0 {
-            break; // a hard failure on the first pass won't be fixed by a second
-        }
-    }
 
-    let pdf = build_dir.join(format!("{}.pdf", paths::ENTRY_STEM));
-    let has_pdf = pdf.exists();
-    Ok(TaggedCompileResult {
-        success: success && has_pdf,
-        has_pdf,
-        log,
+    // Both LuaLaTeX passes spawn a process and block; run them off the async
+    // runtime. Move the small owned values the closure needs.
+    let lualatex = PathBuf::from(&lualatex);
+    let main_doc_c = main_doc.clone();
+    let project_dir_c = project_dir.clone();
+    let build_dir_c = build_dir.clone();
+
+    tauri::async_runtime::spawn_blocking(move || -> Result<TaggedCompileResult, String> {
+        let mut log = String::new();
+        let mut success = false;
+        for pass in 0..2 {
+            let out = Command::new(&lualatex)
+                .arg("-interaction=nonstopmode")
+                .arg("-file-line-error")
+                .arg(format!("-output-directory={out_dir}"))
+                .arg(format!("-jobname={}", paths::ENTRY_STEM))
+                .arg("--")
+                .arg(&main_doc_c)
+                .current_dir(&project_dir_c)
+                .output()
+                .map_err(|e| format!("failed to run lualatex: {e}"))?;
+            log = format!(
+                "{}{}",
+                String::from_utf8_lossy(&out.stdout),
+                String::from_utf8_lossy(&out.stderr)
+            );
+            success = out.status.success();
+            if !success && pass == 0 {
+                break; // a hard failure on the first pass won't be fixed by a second
+            }
+        }
+
+        let pdf = build_dir_c.join(format!("{}.pdf", paths::ENTRY_STEM));
+        let has_pdf = pdf.exists();
+        Ok(TaggedCompileResult {
+            success: success && has_pdf,
+            has_pdf,
+            log,
+        })
     })
+    .await
+    .map_err(|e| e.to_string())?
 }

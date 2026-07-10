@@ -37,6 +37,12 @@ export function getSpellchecker(): Promise<Hunspell> {
     const dicPath = factory.mountBuffer(new Uint8Array(dic), "en_US.dic");
     return factory.create(affPath, dicPath);
   })();
+  // Reset on failure so a later call retries instead of returning the cached
+  // rejection forever (mirrors harper.ts). Without this a transient dictionary
+  // fetch failure would disable spellcheck until the app restarts.
+  readyPromise.catch(() => {
+    readyPromise = null;
+  });
   return readyPromise;
 }
 

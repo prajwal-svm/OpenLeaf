@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   ChevronRight,
   CopyPlus,
@@ -151,7 +151,7 @@ export function FileTree() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-1.5">
+      <div role="tree" aria-label="Source tree" className="flex-1 overflow-auto p-1.5">
         {newMode && (
           <input
             autoFocus
@@ -237,16 +237,46 @@ function TreeRow({
   const isMain = mainDoc === node.path;
   const isRenaming = renamePath === node.path;
 
+  const activate = () => (node.isDir ? toggle(node.path) : void onOpen(node.path));
+
+  const onRowKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      activate();
+    } else if (e.key === "ArrowRight" && node.isDir && !expanded.has(node.path)) {
+      e.preventDefault();
+      toggle(node.path);
+    } else if (e.key === "ArrowLeft" && node.isDir && expanded.has(node.path)) {
+      e.preventDefault();
+      toggle(node.path);
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const items = Array.from(
+        e.currentTarget
+          .closest('[role="tree"]')
+          ?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? []
+      );
+      const idx = items.indexOf(e.currentTarget);
+      const next = e.key === "ArrowDown" ? items[idx + 1] : items[idx - 1];
+      next?.focus();
+    }
+  };
+
   const content = (
     <div
+      role="treeitem"
+      tabIndex={0}
+      aria-expanded={node.isDir ? expanded.has(node.path) : undefined}
+      aria-selected={isActive}
       className={cn(
-        "group flex cursor-pointer items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent",
+        "group flex cursor-pointer items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm text-sidebar-foreground outline-none hover:bg-sidebar-accent focus-visible:ring-1 focus-visible:ring-ring",
         isActive && "bg-sidebar-accent"
       )}
       style={{ paddingLeft: `${depth * 12 + 8}px` }}
       onClick={() =>
         node.isDir ? toggle(node.path) : void onOpen(node.path)
       }
+      onKeyDown={onRowKeyDown}
     >
       {node.isDir ? (
         <>
@@ -330,7 +360,7 @@ function TreeRow({
               onClick={() => {
                 if (
                   window.confirm(
-                    `Delete ${node.path}? This cannot be undone (until Git history, Phase 5).`
+                    `Delete ${node.path}? This cannot be undone.`
                   )
                 )
                   void onDelete(node.path);

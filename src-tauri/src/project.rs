@@ -146,7 +146,14 @@ pub fn write_meta(project_id: &str, meta: &ProjectMeta) -> Result<(), String> {
     std::fs::write(&p, s).map_err(|e| format!("failed to write project.json: {e}"))
 }
 
-fn walk(root: &Path, dir: &Path, out: &mut Vec<FileEntry>) -> Result<(), String> {
+/// Cap recursion depth on directory walks so a deep (or symlink-induced) tree
+/// can't blow the stack or hang the app.
+const MAX_WALK_DEPTH: usize = 64;
+
+fn walk(root: &Path, dir: &Path, out: &mut Vec<FileEntry>, depth: usize) -> Result<(), String> {
+    if depth >= MAX_WALK_DEPTH {
+        return Ok(());
+    }
     let entries = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
     let mut items: Vec<_> = entries
         .collect::<Result<Vec<_>, _>>()
@@ -158,14 +165,24 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<FileEntry>) -> Result<(), String>
         if name_str == ".openleaf" || name_str == ".localleaf" || name_str == ".git" {
             continue;
         }
+        // Skip symlinks entirely (don't list or follow them) so a link pointing
+        // outside the project can't leak paths or create a walk cycle. Use
+        // `file_type()` (from the dir entry, no extra stat, doesn't follow links).
+        let ft = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if ft.is_symlink() {
+            continue;
+        }
         let path = entry.path();
         let rel = path.strip_prefix(root).unwrap_or(&path);
         out.push(FileEntry {
             path: rel.to_string_lossy().into_owned(),
-            is_dir: path.is_dir(),
+            is_dir: ft.is_dir(),
         });
-        if path.is_dir() {
-            walk(root, &path, out)?;
+        if ft.is_dir() {
+            walk(root, &path, out, depth + 1)?;
         }
     }
     Ok(())
@@ -174,11 +191,15 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<FileEntry>) -> Result<(), String>
 // --- Tauri commands ---
 
 #[tauri::command]
-pub fn list_files(project_id: String) -> Result<Vec<FileEntry>, String> {
-    let root = paths::project_dir(&project_id)?;
-    let mut out = Vec::new();
-    walk(&root, &root, &mut out)?;
-    Ok(out)
+pub async fn list_files(project_id: String) -> Result<Vec<FileEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<FileEntry>, String> {
+        let root = paths::project_dir(&project_id)?;
+        let mut out = Vec::new();
+        walk(&root, &root, &mut out, 0)?;
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -212,9 +233,32 @@ pub fn create_file(project_id: String, path: String, is_dir: bool) -> Result<(),
     }
 }
 
+/// Whether deleting `rel` within `root` would target the project root itself.
+///
+/// The string guard (`""`, `"."`) is not enough: `"./"`, `"././"` and similar
+/// pass `resolve_within` (it accepts `Component::CurDir`) and resolve back to
+/// the project root, so a naive `remove_dir_all` would wipe the whole project.
+/// We compare the RESOLVED path against the project root (canonicalized when
+/// possible, falling back to a direct path compare).
+fn is_root_delete(root: &Path, rel: &str) -> bool {
+    if rel.is_empty() || rel == "." {
+        return true;
+    }
+    let p = match resolve_within(root, rel) {
+        Ok(p) => p,
+        // A path that fails to resolve is refused elsewhere; not a root delete.
+        Err(_) => return false,
+    };
+    match (p.canonicalize(), root.canonicalize()) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => p == root,
+    }
+}
+
 #[tauri::command]
 pub fn delete_file(project_id: String, path: String) -> Result<(), String> {
-    if path.is_empty() || path == "." {
+    let root = paths::project_dir(&project_id)?;
+    if is_root_delete(&root, &path) {
         return Err("refusing to delete project root".into());
     }
     let p = resolve(&project_id, &path)?;
@@ -251,25 +295,37 @@ pub fn copy_file(project_id: String, from: String, to: String) -> Result<(), Str
 /// Write base64-encoded bytes to a project file (used to save a compiled PDF
 /// into the project tree).
 #[tauri::command]
-pub fn save_file_base64(project_id: String, path: String, data: String) -> Result<(), String> {
-    use base64::{engine::general_purpose::STANDARD, Engine};
-    let p = resolve(&project_id, &path)?;
-    if let Some(parent) = p.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    let bytes = STANDARD
-        .decode(data.trim())
-        .map_err(|e| format!("invalid base64: {e}"))?;
-    std::fs::write(&p, bytes).map_err(|e| format!("failed to write {path}: {e}"))
+pub async fn save_file_base64(
+    project_id: String,
+    path: String,
+    data: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        let p = resolve(&project_id, &path)?;
+        if let Some(parent) = p.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let bytes = STANDARD
+            .decode(data.trim())
+            .map_err(|e| format!("invalid base64: {e}"))?;
+        std::fs::write(&p, bytes).map_err(|e| format!("failed to write {path}: {e}"))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Read a project file as base64 (for rendering binary files like PDFs).
 #[tauri::command]
-pub fn read_file_base64(project_id: String, path: String) -> Result<String, String> {
-    use base64::{engine::general_purpose::STANDARD, Engine};
-    let p = resolve(&project_id, &path)?;
-    let bytes = std::fs::read(&p).map_err(|e| format!("failed to read {path}: {e}"))?;
-    Ok(STANDARD.encode(&bytes))
+pub async fn read_file_base64(project_id: String, path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        let p = resolve(&project_id, &path)?;
+        let bytes = std::fs::read(&p).map_err(|e| format!("failed to read {path}: {e}"))?;
+        Ok(STANDARD.encode(&bytes))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Append a line to the global app log at `~/.openleaf/app.log` (append-only,
@@ -1097,8 +1153,26 @@ pub fn list_templates() -> Vec<TemplateInfo> {
     ]
 }
 
+/// Light hardening for a user-chosen export/save destination. These paths
+/// legitimately live outside the project sandbox (a native save dialog), so we
+/// do not sandbox them; we only refuse to overwrite an existing directory and
+/// require that the target's parent folder already exists.
+fn guard_export_dest(dest: &str) -> Result<(), String> {
+    let p = Path::new(dest);
+    if p.is_dir() {
+        return Err("export destination is a directory, not a file".into());
+    }
+    if let Some(parent) = p.parent() {
+        if !parent.as_os_str().is_empty() && !parent.is_dir() {
+            return Err("export destination folder does not exist".into());
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn export_pdf(project_id: String, dest: String) -> Result<(), String> {
+    guard_export_dest(&dest)?;
     let build = paths::build_dir(&project_id)?;
     let pdf = build.join(format!("{}.pdf", paths::ENTRY_STEM));
     if !pdf.exists() {
@@ -1180,43 +1254,50 @@ fn find_pandoc() -> Option<String> {
 /// Convert the main document to another format via `pandoc` (md/html/docx).
 /// Errors clearly if pandoc isn't installed on the system.
 #[tauri::command]
-pub fn export_document(
+pub async fn export_document(
     project_id: String,
     main_doc: String,
     format: String,
     dest: String,
 ) -> Result<(), String> {
-    use std::process::Command;
-    let _ = &format; // pandoc infers the output format from the dest extension
-    let root = paths::project_dir(&project_id)?;
-    // Validate `main_doc` stays inside the project before handing it to pandoc.
-    resolve(&project_id, &main_doc)?;
-    // Find pandoc (PATH or a common install location).
-    let pandoc = find_pandoc().ok_or_else(|| {
-        "pandoc is not installed. Install pandoc to export Word/HTML/Markdown.".to_string()
-    })?;
-    // `--` terminates option parsing so a `main_doc` beginning with `-` can't be
-    // interpreted as a pandoc flag (defense-in-depth; it's already validated to
-    // stay inside the project).
-    let out = Command::new(&pandoc)
-        .arg("-o")
-        .arg(&dest)
-        .arg("--")
-        .arg(&main_doc)
-        .current_dir(&root)
-        .output()
-        .map_err(|e| format!("failed to run pandoc: {e}"))?;
-    if !out.status.success() {
-        let err = String::from_utf8_lossy(&out.stderr);
-        return Err(format!("pandoc failed: {}", err.trim()));
-    }
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        use std::process::Command;
+        let _ = &format; // pandoc infers the output format from the dest extension
+        guard_export_dest(&dest)?;
+        let root = paths::project_dir(&project_id)?;
+        // Validate `main_doc` stays inside the project before handing it to pandoc.
+        resolve(&project_id, &main_doc)?;
+        // Find pandoc (PATH or a common install location).
+        let pandoc = find_pandoc().ok_or_else(|| {
+            "pandoc is not installed. Install pandoc to export Word/HTML/Markdown.".to_string()
+        })?;
+        // `--` terminates option parsing so a `main_doc` beginning with `-` can't be
+        // interpreted as a pandoc flag (defense-in-depth; it's already validated to
+        // stay inside the project).
+        let out = Command::new(&pandoc)
+            .arg("-o")
+            .arg(&dest)
+            .arg("--")
+            .arg(&main_doc)
+            .current_dir(&root)
+            .output()
+            .map_err(|e| format!("failed to run pandoc: {e}"))?;
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr);
+            return Err(format!("pandoc failed: {}", err.trim()));
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Whether a usable pandoc is already available (system or our cache).
 #[tauri::command]
-pub fn has_pandoc() -> bool {
-    find_pandoc().is_some()
+pub async fn has_pandoc() -> bool {
+    tauri::async_runtime::spawn_blocking(|| find_pandoc().is_some())
+        .await
+        .unwrap_or(false)
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -1412,7 +1493,11 @@ fn search_walk(
     dir: &Path,
     q_lower: &str,
     hits: &mut Vec<SearchHit>,
+    depth: usize,
 ) {
+    if depth >= MAX_WALK_DEPTH {
+        return;
+    }
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
@@ -1426,9 +1511,26 @@ fn search_walk(
         if name_str == ".openleaf" || name_str == ".localleaf" || name_str == ".git" {
             continue;
         }
+        // Skip symlinks (don't follow or read them) to avoid escaping the project
+        // tree or looping through a cycle.
+        let ft = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if ft.is_symlink() {
+            continue;
+        }
         let path = entry.path();
-        if path.is_dir() {
-            search_walk(project_id, project_name, root, &path, q_lower, hits);
+        if ft.is_dir() {
+            search_walk(
+                project_id,
+                project_name,
+                root,
+                &path,
+                q_lower,
+                hits,
+                depth + 1,
+            );
             continue;
         }
         if !is_searchable(&name_str) {
@@ -1463,142 +1565,186 @@ fn search_walk(
 
 /// Search every project's text files for `query` (case-insensitive, substring).
 #[tauri::command]
-pub fn search_docs(query: String) -> Result<Vec<SearchHit>, String> {
-    let q = query.trim();
-    if q.is_empty() {
-        return Ok(Vec::new());
-    }
-    let q_lower = q.to_lowercase();
-    let root = paths::projects_root()?;
-    let mut hits: Vec<SearchHit> = Vec::new();
-    let entries = std::fs::read_dir(&root).map_err(|e| e.to_string())?;
-    for entry in entries.flatten() {
-        if hits.len() >= SEARCH_LIMIT {
-            break;
+pub async fn search_docs(query: String) -> Result<Vec<SearchHit>, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<SearchHit>, String> {
+        let q = query.trim();
+        if q.is_empty() {
+            return Ok(Vec::new());
         }
-        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            continue;
+        let q_lower = q.to_lowercase();
+        let root = paths::projects_root()?;
+        let mut hits: Vec<SearchHit> = Vec::new();
+        let entries = std::fs::read_dir(&root).map_err(|e| e.to_string())?;
+        for entry in entries.flatten() {
+            if hits.len() >= SEARCH_LIMIT {
+                break;
+            }
+            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let project_id = entry.file_name().to_string_lossy().into_owned();
+            let meta = read_meta(&project_id).unwrap_or_default();
+            let project_name = if meta.name.is_empty() {
+                project_id.clone()
+            } else {
+                meta.name
+            };
+            search_walk(
+                &project_id,
+                &project_name,
+                &entry.path(),
+                &entry.path(),
+                &q_lower,
+                &mut hits,
+                0,
+            );
         }
-        let project_id = entry.file_name().to_string_lossy().into_owned();
-        let meta = read_meta(&project_id).unwrap_or_default();
-        let project_name = if meta.name.is_empty() {
-            project_id.clone()
-        } else {
-            meta.name
-        };
-        search_walk(
-            &project_id,
-            &project_name,
-            &entry.path(),
-            &entry.path(),
-            &q_lower,
-            &mut hits,
-        );
-    }
-    Ok(hits)
+        Ok(hits)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Search a SINGLE project's text files for `query`. Used by the AI assistant so
 /// a chat scoped to one project can't surface (and forward to the model) the
 /// contents of the user's other projects.
 #[tauri::command]
-pub fn search_project(project_id: String, query: String) -> Result<Vec<SearchHit>, String> {
-    let q = query.trim();
-    if q.is_empty() {
-        return Ok(Vec::new());
-    }
-    let q_lower = q.to_lowercase();
-    let root = paths::project_dir(&project_id)?;
-    let meta = read_meta(&project_id).unwrap_or_default();
-    let project_name = if meta.name.is_empty() {
-        project_id.clone()
-    } else {
-        meta.name
-    };
-    let mut hits: Vec<SearchHit> = Vec::new();
-    search_walk(
-        &project_id,
-        &project_name,
-        &root,
-        &root,
-        &q_lower,
-        &mut hits,
-    );
-    Ok(hits)
+pub async fn search_project(project_id: String, query: String) -> Result<Vec<SearchHit>, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<SearchHit>, String> {
+        let q = query.trim();
+        if q.is_empty() {
+            return Ok(Vec::new());
+        }
+        let q_lower = q.to_lowercase();
+        let root = paths::project_dir(&project_id)?;
+        let meta = read_meta(&project_id).unwrap_or_default();
+        let project_name = if meta.name.is_empty() {
+            project_id.clone()
+        } else {
+            meta.name
+        };
+        let mut hits: Vec<SearchHit> = Vec::new();
+        search_walk(
+            &project_id,
+            &project_name,
+            &root,
+            &root,
+            &q_lower,
+            &mut hits,
+            0,
+        );
+        Ok(hits)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // --- Download ZIP, Duplicate, Clear cache ---
 
 /// Zip a project's source files (excluding `.openleaf`, `.git`) to `dest`.
 #[tauri::command]
-pub fn download_project_zip(project_id: String, dest: String) -> Result<(), String> {
-    let root = paths::project_dir(&project_id)?;
-    let file = std::fs::File::create(&dest).map_err(|e| e.to_string())?;
-    let mut writer = zip::ZipWriter::new(file);
-    let opts = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+pub async fn download_project_zip(project_id: String, dest: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        guard_export_dest(&dest)?;
+        let root = paths::project_dir(&project_id)?;
+        let file = std::fs::File::create(&dest).map_err(|e| e.to_string())?;
+        let mut writer = zip::ZipWriter::new(file);
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
 
-    fn add_dir(
-        writer: &mut zip::ZipWriter<std::fs::File>,
-        opts: zip::write::SimpleFileOptions,
-        base: &Path,
-        dir: &Path,
-    ) -> Result<(), String> {
-        for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
-            let entry = entry.map_err(|e| e.to_string())?;
-            let name = entry.file_name();
-            let name_str = name.to_string_lossy();
-            if name_str == ".openleaf" || name_str == ".localleaf" || name_str == ".git" {
-                continue;
+        fn add_dir(
+            writer: &mut zip::ZipWriter<std::fs::File>,
+            opts: zip::write::SimpleFileOptions,
+            base: &Path,
+            dir: &Path,
+            depth: usize,
+        ) -> Result<(), String> {
+            if depth >= MAX_WALK_DEPTH {
+                return Ok(());
             }
-            let path = entry.path();
-            let rel = path.strip_prefix(base).unwrap_or(&path);
-            let zip_name = rel.to_string_lossy().replace('\\', "/");
-            if path.is_dir() {
-                writer
-                    .add_directory(&zip_name, opts)
-                    .map_err(|e| e.to_string())?;
-                add_dir(writer, opts, base, &path)?;
-            } else {
-                writer
-                    .start_file(&zip_name, opts)
-                    .map_err(|e| e.to_string())?;
-                let mut f = std::fs::File::open(&path).map_err(|e| e.to_string())?;
-                std::io::copy(&mut f, writer).map_err(|e| e.to_string())?;
+            for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
+                let entry = entry.map_err(|e| e.to_string())?;
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+                if name_str == ".openleaf" || name_str == ".localleaf" || name_str == ".git" {
+                    continue;
+                }
+                // Skip symlinks so the archive can't include or follow a link
+                // pointing outside the project (or loop through a cycle).
+                let ft = match entry.file_type() {
+                    Ok(ft) => ft,
+                    Err(_) => continue,
+                };
+                if ft.is_symlink() {
+                    continue;
+                }
+                let path = entry.path();
+                let rel = path.strip_prefix(base).unwrap_or(&path);
+                let zip_name = rel.to_string_lossy().replace('\\', "/");
+                if ft.is_dir() {
+                    writer
+                        .add_directory(&zip_name, opts)
+                        .map_err(|e| e.to_string())?;
+                    add_dir(writer, opts, base, &path, depth + 1)?;
+                } else {
+                    writer
+                        .start_file(&zip_name, opts)
+                        .map_err(|e| e.to_string())?;
+                    let mut f = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+                    std::io::copy(&mut f, writer).map_err(|e| e.to_string())?;
+                }
             }
+            Ok(())
         }
-        Ok(())
-    }
 
-    add_dir(&mut writer, opts, &root, &root)?;
-    writer.finish().map_err(|e| e.to_string())?;
-    Ok(())
+        add_dir(&mut writer, opts, &root, &root, 0)?;
+        writer.finish().map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Duplicate a project (copy everything including `.git` history).
 #[tauri::command]
-pub fn duplicate_project(project_id: String, new_name: String) -> Result<String, String> {
-    let root = paths::projects_root()?;
-    let src = paths::project_dir(&project_id)?;
-    let new_id = unique_random_slug(&root)?;
-    let dst = root.join(&new_id);
-    copy_dir_recursive(&src, &dst)?;
-    // Update the project name in the copy.
-    if let Ok(mut meta) = read_meta(&new_id) {
-        meta.name = new_name;
-        let _ = write_meta(&new_id, &meta);
-    }
-    Ok(new_id)
+pub async fn duplicate_project(project_id: String, new_name: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let root = paths::projects_root()?;
+        let src = paths::project_dir(&project_id)?;
+        let new_id = unique_random_slug(&root)?;
+        let dst = root.join(&new_id);
+        copy_dir_recursive(&src, &dst, 0)?;
+        // Update the project name in the copy.
+        if let Ok(mut meta) = read_meta(&new_id) {
+            meta.name = new_name;
+            let _ = write_meta(&new_id, &meta);
+        }
+        Ok(new_id)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+fn copy_dir_recursive(src: &Path, dst: &Path, depth: usize) -> Result<(), String> {
+    if depth >= MAX_WALK_DEPTH {
+        return Ok(());
+    }
     std::fs::create_dir_all(dst).map_err(|e| e.to_string())?;
     for entry in std::fs::read_dir(src).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
+        // Skip symlinks: don't copy or follow them (avoids escaping the source
+        // tree and recursion cycles).
+        let ft = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if ft.is_symlink() {
+            continue;
+        }
         let path = entry.path();
         let dest = dst.join(entry.file_name());
-        if path.is_dir() {
-            copy_dir_recursive(&path, &dest)?;
+        if ft.is_dir() {
+            copy_dir_recursive(&path, &dest, depth + 1)?;
         } else {
             std::fs::copy(&path, &dest).map_err(|e| e.to_string())?;
         }
@@ -1621,14 +1767,18 @@ pub fn clear_build_cache(project_id: String) -> Result<(), String> {
 
 /// Delete a project (removes its directory entirely).
 #[tauri::command]
-pub fn delete_project(project_id: String) -> Result<(), String> {
-    paths::validate_project_id(&project_id)?;
-    let root = paths::projects_root()?;
-    let dir = root.join(&project_id);
-    if !dir.exists() {
-        return Ok(());
-    }
-    std::fs::remove_dir_all(&dir).map_err(|e| format!("failed to delete project: {e}"))
+pub async fn delete_project(project_id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        paths::validate_project_id(&project_id)?;
+        let root = paths::projects_root()?;
+        let dir = root.join(&project_id);
+        if !dir.exists() {
+            return Ok(());
+        }
+        std::fs::remove_dir_all(&dir).map_err(|e| format!("failed to delete project: {e}"))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]
@@ -1666,6 +1816,20 @@ mod tests {
         let root = temp_root();
         let p = resolve_within(&root, "sub/dir/file.tex").unwrap();
         assert!(p.starts_with(&root));
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn refuses_delete_of_project_root() {
+        let root = temp_root();
+        // The plain string guard plus the resolved-root comparison must catch
+        // every spelling that resolves back to the project root.
+        assert!(is_root_delete(&root, ""));
+        assert!(is_root_delete(&root, "."));
+        assert!(is_root_delete(&root, "./"));
+        assert!(is_root_delete(&root, "././"));
+        // A real relative file is not the root and must be deletable.
+        assert!(!is_root_delete(&root, "main.tex"));
         std::fs::remove_dir_all(&root).ok();
     }
 

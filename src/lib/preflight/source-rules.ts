@@ -1,3 +1,4 @@
+import { maskComments } from "./mask";
 import type { Finding, Lens, Severity } from "./types";
 
 /**
@@ -357,5 +358,8 @@ const RULES: Rule[] = [
 
 /** Run every source rule and return all findings, in source order. */
 export function runSourceRules(text: string): Finding[] {
-  return RULES.flatMap((rule) => rule(text)).sort((a, b) => (a.from ?? 0) - (b.from ?? 0));
+  // Blank out commented-out LaTeX first so `% \usepackage{multicol}` does not
+  // raise a false error. Offsets are preserved (comments become spaces).
+  const masked = maskComments(text);
+  return RULES.flatMap((rule) => rule(masked)).sort((a, b) => (a.from ?? 0) - (b.from ?? 0));
 }

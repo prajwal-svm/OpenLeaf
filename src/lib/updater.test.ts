@@ -37,6 +37,12 @@ describe("findUpdate", () => {
     check.mockResolvedValue(update);
     expect(await findUpdate()).toBe(update);
   });
+
+  it("passes a timeout so a hung check can't latch inFlight forever", async () => {
+    check.mockResolvedValue(null);
+    await findUpdate();
+    expect(check).toHaveBeenCalledWith(expect.objectContaining({ timeout: 15000 }));
+  });
 });
 
 describe("installUpdate", () => {

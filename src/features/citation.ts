@@ -104,6 +104,13 @@ export async function addCitation(bibtex: string): Promise<{ key: string } | { e
 
   if (files.files[target.path] !== undefined) {
     files.setContent(target.path, newContent);
+    // Persist now instead of waiting for the autosave debounce, so a compile
+    // (which reads from disk) resolves the new \cite immediately.
+    try {
+      await useFilesStore.getState().saveFile(target.path);
+    } catch (e) {
+      return { error: `Could not write ${target.path}: ${e}` };
+    }
   } else if (id) {
     try {
       await writeFileContent(id, target.path, newContent);

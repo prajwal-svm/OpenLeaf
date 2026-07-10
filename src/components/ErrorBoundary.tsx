@@ -4,6 +4,12 @@ import { reportCrashToGithub } from "@/lib/crash-report";
 
 interface Props {
   children: ReactNode;
+  /**
+   * Optional lightweight fallback for wrapping a single risky subtree (a panel)
+   * rather than the whole app. When provided, a caught error renders this
+   * instead of the full-screen crash screen, so the rest of the UI survives.
+   */
+  fallback?: ReactNode;
 }
 
 interface State {
@@ -33,6 +39,10 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     const { error } = this.state;
     if (!error) return this.props.children;
+
+    // Scoped boundaries render their own compact fallback and leave the rest of
+    // the app mounted.
+    if (this.props.fallback !== undefined) return this.props.fallback;
 
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-background p-8 text-center text-foreground">

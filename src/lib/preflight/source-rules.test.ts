@@ -155,6 +155,27 @@ describe("reading-order-risk", () => {
   });
 });
 
+describe("comment masking", () => {
+  it("does not flag a commented-out multicol package", () => {
+    expect(has("% \\usepackage{multicol}", "multi-column")).toBe(false);
+  });
+  it("still flags an uncommented multicol package on a later line", () => {
+    expect(has("% a note\n\\usepackage{multicol}", "multi-column")).toBe(true);
+  });
+  it("treats an escaped percent as literal text, not a comment", () => {
+    // `\%` is a literal percent, so the multicol after it is NOT commented out.
+    expect(has("\\documentclass{article} \\% literal percent \\usepackage{multicol}", "multi-column")).toBe(
+      true,
+    );
+  });
+  it("keeps source offsets stable after masking", () => {
+    const src = "% comment\n\\includegraphics{photo.png}";
+    const f = runSourceRules(src).find((x) => x.id === "figure-alt");
+    expect(f).toBeDefined();
+    expect(src.slice(f!.from, f!.to)).toBe("\\includegraphics{photo.png}");
+  });
+});
+
 describe("finding shape", () => {
   it("gives match-based findings a source range", () => {
     const f = runSourceRules("\\includegraphics{photo.png}").find((x) => x.id === "figure-alt");

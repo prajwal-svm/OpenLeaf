@@ -46,40 +46,52 @@ pub struct GitCommit {
 }
 
 #[tauri::command]
-pub fn git_auto_commit(project_id: String, message: String) -> Result<bool, String> {
-    let root = ensure_repo(&project_id)?;
-    run_git(&root, &["add", "-A"])?;
-    let out = run_git(&root, &["commit", "--quiet", "-m", &message])?;
-    Ok(out.status.success())
+pub async fn git_auto_commit(project_id: String, message: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<bool, String> {
+        let root = ensure_repo(&project_id)?;
+        run_git(&root, &["add", "-A"])?;
+        let out = run_git(&root, &["commit", "--quiet", "-m", &message])?;
+        Ok(out.status.success())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn git_log(project_id: String) -> Result<Vec<GitCommit>, String> {
-    let root = ensure_repo(&project_id)?;
-    let out = run_git(&root, &["log", "--pretty=format:%H%x09%h%x09%ct%x09%s"])?;
-    let text = String::from_utf8_lossy(&out.stdout);
-    let mut commits = Vec::new();
-    for line in text.lines() {
-        let parts: Vec<&str> = line.split('\t').collect();
-        if parts.len() < 4 {
-            continue;
+pub async fn git_log(project_id: String) -> Result<Vec<GitCommit>, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<GitCommit>, String> {
+        let root = ensure_repo(&project_id)?;
+        let out = run_git(&root, &["log", "--pretty=format:%H%x09%h%x09%ct%x09%s"])?;
+        let text = String::from_utf8_lossy(&out.stdout);
+        let mut commits = Vec::new();
+        for line in text.lines() {
+            let parts: Vec<&str> = line.split('\t').collect();
+            if parts.len() < 4 {
+                continue;
+            }
+            commits.push(GitCommit {
+                oid: parts[0].to_string(),
+                short: parts[1].to_string(),
+                time: parts[2].parse().unwrap_or(0.0),
+                message: parts[3..].join("\t"),
+            });
         }
-        commits.push(GitCommit {
-            oid: parts[0].to_string(),
-            short: parts[1].to_string(),
-            time: parts[2].parse().unwrap_or(0.0),
-            message: parts[3..].join("\t"),
-        });
-    }
-    Ok(commits)
+        Ok(commits)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn git_restore(project_id: String, oid: String) -> Result<(), String> {
-    let root = ensure_repo(&project_id)?;
-    // Restore all tracked files from the given commit into the working tree.
-    run_git(&root, &["checkout", &oid, "--", "."])?;
-    Ok(())
+pub async fn git_restore(project_id: String, oid: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let root = ensure_repo(&project_id)?;
+        // Restore all tracked files from the given commit into the working tree.
+        run_git(&root, &["checkout", &oid, "--", "."])?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // --- Remotes, push, pull ---
@@ -269,46 +281,50 @@ pub struct AheadBehind {
 /// How many commits the local branch is ahead/behind `origin/<branch>` (based
 /// on the locally-known remote-tracking ref; refreshes after a push or pull).
 #[tauri::command]
-pub fn git_ahead_behind(project_id: String) -> Result<AheadBehind, String> {
-    let root = ensure_repo(&project_id)?;
-    let branch = current_branch(&root)?;
-    let upstream = format!("origin/{branch}");
-    let has_upstream = run_git(&root, &["rev-parse", "--verify", &upstream])?
-        .status
-        .success();
-    if !has_upstream {
-        return Ok(AheadBehind {
-            ahead: 0,
-            behind: 0,
-            has_upstream: false,
-        });
-    }
-    let out = run_git(
-        &root,
-        &[
-            "rev-list",
-            "--left-right",
-            "--count",
-            &format!("{upstream}...{branch}"),
-        ],
-    )?;
-    if !out.status.success() {
-        return Ok(AheadBehind {
-            ahead: 0,
-            behind: 0,
-            has_upstream: false,
-        });
-    }
-    let text = String::from_utf8_lossy(&out.stdout);
-    let mut parts = text.split_whitespace();
-    // left = commits on upstream not in branch (behind); right = ahead.
-    let behind: u32 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-    let ahead: u32 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-    Ok(AheadBehind {
-        ahead,
-        behind,
-        has_upstream: true,
+pub async fn git_ahead_behind(project_id: String) -> Result<AheadBehind, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<AheadBehind, String> {
+        let root = ensure_repo(&project_id)?;
+        let branch = current_branch(&root)?;
+        let upstream = format!("origin/{branch}");
+        let has_upstream = run_git(&root, &["rev-parse", "--verify", &upstream])?
+            .status
+            .success();
+        if !has_upstream {
+            return Ok(AheadBehind {
+                ahead: 0,
+                behind: 0,
+                has_upstream: false,
+            });
+        }
+        let out = run_git(
+            &root,
+            &[
+                "rev-list",
+                "--left-right",
+                "--count",
+                &format!("{upstream}...{branch}"),
+            ],
+        )?;
+        if !out.status.success() {
+            return Ok(AheadBehind {
+                ahead: 0,
+                behind: 0,
+                has_upstream: false,
+            });
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        let mut parts = text.split_whitespace();
+        // left = commits on upstream not in branch (behind); right = ahead.
+        let behind: u32 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        let ahead: u32 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        Ok(AheadBehind {
+            ahead,
+            behind,
+            has_upstream: true,
+        })
     })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -408,41 +424,54 @@ fn parse_status_porcelain(text: &str) -> Vec<GitFileChange> {
 }
 
 #[tauri::command]
-pub fn git_status(project_id: String) -> Result<Vec<GitFileChange>, String> {
-    let root = ensure_repo(&project_id)?;
-    let out = run_git(&root, &["status", "--porcelain"])?;
-    let text = String::from_utf8_lossy(&out.stdout);
-    Ok(parse_status_porcelain(&text))
+pub async fn git_status(project_id: String) -> Result<Vec<GitFileChange>, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<GitFileChange>, String> {
+        let root = ensure_repo(&project_id)?;
+        let out = run_git(&root, &["status", "--porcelain"])?;
+        let text = String::from_utf8_lossy(&out.stdout);
+        Ok(parse_status_porcelain(&text))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn git_diff(project_id: String, path: Option<String>, staged: bool) -> Result<String, String> {
-    let root = ensure_repo(&project_id)?;
+pub async fn git_diff(
+    project_id: String,
+    path: Option<String>,
+    staged: bool,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let root = ensure_repo(&project_id)?;
 
-    // Untracked files aren't shown by `git diff` (returns empty). Detect an
-    // untracked path and synthesize a full-file addition diff via --no-index so
-    // the viewer shows the whole file as additions (all green).
-    if let Some(p) = &path {
-        if !staged {
-            let is_tracked = match run_git(&root, &["ls-files", "--error-unmatch", p.as_str()]) {
-                Ok(o) => o.status.success(),
-                Err(_) => false,
-            };
-            if !is_tracked {
-                let devnull = if cfg!(windows) { "NUL" } else { "/dev/null" };
-                let out = run_git(&root, &["diff", "--no-index", "--", devnull, p.as_str()])?;
-                return Ok(String::from_utf8_lossy(&out.stdout).to_string());
+        // Untracked files aren't shown by `git diff` (returns empty). Detect an
+        // untracked path and synthesize a full-file addition diff via --no-index so
+        // the viewer shows the whole file as additions (all green).
+        if let Some(p) = &path {
+            if !staged {
+                let is_tracked = match run_git(&root, &["ls-files", "--error-unmatch", p.as_str()])
+                {
+                    Ok(o) => o.status.success(),
+                    Err(_) => false,
+                };
+                if !is_tracked {
+                    let devnull = if cfg!(windows) { "NUL" } else { "/dev/null" };
+                    let out = run_git(&root, &["diff", "--no-index", "--", devnull, p.as_str()])?;
+                    return Ok(String::from_utf8_lossy(&out.stdout).to_string());
+                }
             }
         }
-    }
 
-    let out = match (staged, &path) {
-        (false, None) => run_git(&root, &["diff"]),
-        (true, None) => run_git(&root, &["diff", "--cached"]),
-        (false, Some(p)) => run_git(&root, &["diff", "--", p.as_str()]),
-        (true, Some(p)) => run_git(&root, &["diff", "--cached", "--", p.as_str()]),
-    }?;
-    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+        let out = match (staged, &path) {
+            (false, None) => run_git(&root, &["diff"]),
+            (true, None) => run_git(&root, &["diff", "--cached"]),
+            (false, Some(p)) => run_git(&root, &["diff", "--", p.as_str()]),
+            (true, Some(p)) => run_git(&root, &["diff", "--cached", "--", p.as_str()]),
+        }?;
+        Ok(String::from_utf8_lossy(&out.stdout).to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -563,39 +592,63 @@ fn show(root: &PathBuf, rev: &str, path: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn git_stage(project_id: String, path: String) -> Result<(), String> {
-    let root = ensure_repo(&project_id)?;
-    stage(&root, &path)
+pub async fn git_stage(project_id: String, path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let root = ensure_repo(&project_id)?;
+        stage(&root, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn git_unstage(project_id: String, path: String) -> Result<(), String> {
-    let root = ensure_repo(&project_id)?;
-    unstage(&root, &path)
+pub async fn git_unstage(project_id: String, path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let root = ensure_repo(&project_id)?;
+        unstage(&root, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn git_stage_all(project_id: String) -> Result<(), String> {
-    let root = ensure_repo(&project_id)?;
-    stage_all(&root)
+pub async fn git_stage_all(project_id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let root = ensure_repo(&project_id)?;
+        stage_all(&root)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn git_unstage_all(project_id: String) -> Result<(), String> {
-    let root = ensure_repo(&project_id)?;
-    unstage_all(&root)
+pub async fn git_unstage_all(project_id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let root = ensure_repo(&project_id)?;
+        unstage_all(&root)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn git_commit(project_id: String, message: String) -> Result<bool, String> {
-    let root = ensure_repo(&project_id)?;
-    commit_index(&root, &message)
+pub async fn git_commit(project_id: String, message: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<bool, String> {
+        let root = ensure_repo(&project_id)?;
+        commit_index(&root, &message)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn git_show(project_id: String, rev: String, path: String) -> Result<String, String> {
-    let root = ensure_repo(&project_id)?;
-    show(&root, &rev, &path)
+pub async fn git_show(project_id: String, rev: String, path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let root = ensure_repo(&project_id)?;
+        show(&root, &rev, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]

@@ -30,6 +30,7 @@ import { ChatHistoryModal } from "@/components/ai/ChatHistoryModal";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
@@ -327,6 +328,9 @@ export function ChatPanel() {
     if (picked.length) setAttachments((cur) => [...cur, ...picked].slice(0, MAX_ATTACH));
   };
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Whether the user is pinned near the bottom. Only then do we auto-scroll on
+  // new tokens, so a user who has scrolled up to read isn't yanked back down.
+  const nearBottomRef = useRef(true);
   // Aborts the in-flight AI run (Stop button, project switch, unmount).
   const abortRef = useRef<AbortController | null>(null);
   // Trailing-debounce timer for persisting the streaming conversation.
@@ -432,14 +436,17 @@ export function ChatPanel() {
   );
 
 
-  // Open an existing chat from history.
+  // Open an existing chat from history. Guarded by `streaming` (like newChat)
+  // so switching chats mid-stream can't splice the in-flight run's tokens into
+  // a different conversation. Covers the recent-chats list and the history modal.
   const openChat = useCallback(
     (chat: StoredChat) => {
+      if (streaming) return;
       setActiveChat(chat.id);
       setMessages(chat.messages);
       setHistoryOpen(false);
     },
-    [setActiveChat]
+    [streaming, setActiveChat]
   );
 
   // Start a brand-new conversation.
@@ -459,11 +466,14 @@ export function ChatPanel() {
   }, [modelDropdown]);
 
   useEffect(() => {
+    if (!nearBottomRef.current) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, thinkingText]);
 
-  const scrollToBottom = () =>
+  const scrollToBottom = () => {
+    nearBottomRef.current = true;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  };
 
   // Show a jump-to-bottom button once the user has scrolled up, but only when the
   // conversation is long enough to matter (content at least twice the viewport,
@@ -472,6 +482,8 @@ export function ChatPanel() {
     const el = scrollRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // Auto-scroll only while the user is essentially at the bottom.
+    nearBottomRef.current = distanceFromBottom < 100;
     const longEnough = el.scrollHeight > el.clientHeight * 2;
     setShowScrollDown(longEnough && distanceFromBottom > 80);
   };
@@ -994,21 +1006,31 @@ USER_CUSTOM_INSTRUCTIONS`
                 )}
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
-                {/* Memoized items: only the streaming (last) message re-renders per
-                    token; completed messages skip re-parsing their markdown. */}
-                {messages.map((msg, i) => (
-                  <MessageItem key={i} msg={msg} />
-                ))}
-                {/* Live shimmer, kept OUT of the memoized items so the frequent
-                    thinkingText updates don't reconcile the whole message list. */}
-                {streaming &&
-                  messages[messages.length - 1]?.role === "assistant" && (
-                    <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2">
-                      <Shimmer text={thinkingText || "Thinking…"} />
-                    </div>
-                  )}
-              </div>
+              <ErrorBoundary
+                fallback={
+                  <div className="px-1 py-4 text-center text-sm text-muted-foreground">
+                    This conversation failed to render. Start a new chat or reopen it from history.
+                  </div>
+                }
+              >
+                <div className="flex flex-col gap-3">
+                  {/* Memoized items: only the streaming (last) message re-renders per
+                      token; completed messages skip re-parsing their markdown.
+                      Key is scoped to the active chat so instances aren't reused
+                      across conversations (which would leak expand/scroll state). */}
+                  {messages.map((msg, i) => (
+                    <MessageItem key={`${activeChatId ?? "none"}:${i}`} msg={msg} />
+                  ))}
+                  {/* Live shimmer, kept OUT of the memoized items so the frequent
+                      thinkingText updates don't reconcile the whole message list. */}
+                  {streaming &&
+                    messages[messages.length - 1]?.role === "assistant" && (
+                      <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2">
+                        <Shimmer text={thinkingText || "Thinking…"} />
+                      </div>
+                    )}
+                </div>
+              </ErrorBoundary>
             )}
           </div>
             {showScrollDown && (
@@ -1060,7 +1082,7 @@ USER_CUSTOM_INSTRUCTIONS`
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(input); } }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(input); } }}
                 placeholder="Ask AI to help with your LaTeX…"
                 rows={1}
                 className="max-h-32 min-h-[24px] flex-1 resize-none rounded-md bg-transparent pl-2 text-sm outline-none placeholder:text-muted-foreground"

@@ -23,10 +23,17 @@ pub fn app_version() -> &'static str {
 /// (Finder on macOS, Explorer on Windows, xdg-open on Linux).
 #[tauri::command]
 pub fn reveal_in_dir(path: String) -> Result<(), String> {
-    let p = std::path::Path::new(&path);
-    if !p.exists() {
+    let raw = std::path::Path::new(&path);
+    if !raw.exists() {
         return Err(format!("path does not exist: {path}"));
     }
+    // Normalize (resolve `.`/`..`/symlinks) before handing the path to the OS
+    // opener, so a crafted relative or dotted path can't point somewhere
+    // unexpected.
+    let canonical = raw
+        .canonicalize()
+        .map_err(|e| format!("cannot resolve path: {e}"))?;
+    let path = canonical.to_string_lossy().to_string();
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
@@ -43,7 +50,7 @@ pub fn reveal_in_dir(path: String) -> Result<(), String> {
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        let dir = p
+        let dir = canonical
             .parent()
             .map(|d| d.to_string_lossy().into_owned())
             .unwrap_or(path.clone());
@@ -215,10 +222,14 @@ fn tectonic_args(out_dir: &str, search_path: &str, entry: &str, offline: bool) -
 /// `tauri::ipc::Response` sends the bytes straight through IPC; the frontend
 /// receives an `ArrayBuffer`.
 #[tauri::command]
-pub fn read_compiled_pdf(project_id: String) -> Result<Response, String> {
-    let build = paths::build_dir(&project_id)?;
-    let pdf = build.join(format!("{}.pdf", paths::ENTRY_STEM));
-    let bytes = std::fs::read(&pdf).map_err(|e| format!("no compiled PDF: {e}"))?;
+pub async fn read_compiled_pdf(project_id: String) -> Result<Response, String> {
+    let bytes = tauri::async_runtime::spawn_blocking(move || -> Result<Vec<u8>, String> {
+        let build = paths::build_dir(&project_id)?;
+        let pdf = build.join(format!("{}.pdf", paths::ENTRY_STEM));
+        std::fs::read(&pdf).map_err(|e| format!("no compiled PDF: {e}"))
+    })
+    .await
+    .map_err(|e| e.to_string())??;
     Ok(Response::new(bytes))
 }
 

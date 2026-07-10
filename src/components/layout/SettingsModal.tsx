@@ -126,7 +126,8 @@ function ToggleRow({
 }) {
   return (
     <div
-      role="button"
+      role="switch"
+      aria-checked={checked}
       tabIndex={0}
       onClick={() => onChange(!checked)}
       onKeyDown={(e) => {
@@ -701,6 +702,15 @@ function GitHubSection({
   // Lets the user cancel a running device flow. Bumping the generation
   // invalidates any in-flight poll (also guards cancel→reconnect races).
   const flowGenRef = useRef(0);
+
+  // Cancel any in-flight device-flow poll when this section unmounts (e.g. the
+  // Settings modal is closed mid-flow). Bumping the generation makes the loop's
+  // `cancelled()` return true, so it stops polling and skips further setState.
+  useEffect(() => {
+    return () => {
+      flowGenRef.current++;
+    };
+  }, []);
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

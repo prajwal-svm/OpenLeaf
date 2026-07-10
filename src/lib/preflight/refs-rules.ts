@@ -1,3 +1,4 @@
+import { maskComments } from "./mask";
 import type { Finding } from "./types";
 
 /**
@@ -48,9 +49,12 @@ function resolves(ref: string, files: string[], exts: string[]): boolean {
   return false;
 }
 
-export function runRefsRules(source: string, ctx: RefsContext): Finding[] {
+export function runRefsRules(rawSource: string, ctx: RefsContext): Finding[] {
   const out: Finding[] = [];
   let m: RegExpExecArray | null;
+  // Blank out commented-out LaTeX so a commented `\cite`/`\ref`/`\label` does
+  // not raise a false finding. Offsets are preserved (comments become spaces).
+  const source = maskComments(rawSource);
 
   // Labels defined anywhere we can see (corpus + this source).
   const labels = new Set(ctx.definedLabels.map((l) => l.trim()));

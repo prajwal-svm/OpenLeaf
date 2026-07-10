@@ -78,6 +78,21 @@ function firstTitleWord(title: string): string {
   return "";
 }
 
+/**
+ * Collision suffix: a, b, ..., z, then aa, ab, ... (bijective base-26). Stays
+ * within [a-z] so the key remains a valid BibTeX identifier even past the 26th
+ * collision (the old `String.fromCharCode(97 + n)` walked into '{', '|', '}').
+ */
+function collisionSuffix(n: number): string {
+  let s = "";
+  let i = n;
+  do {
+    s = String.fromCharCode(97 + (i % 26)) + s;
+    i = Math.floor(i / 26) - 1;
+  } while (i >= 0);
+  return s;
+}
+
 /** Generate a `firstauthorYEARword` cite key, deduped against existing keys. */
 export function generateCiteKey(fields: Record<string, string>, existing: Set<string>): string {
   const family = ascii(firstAuthorFamily(fields.author ?? ""));
@@ -88,7 +103,7 @@ export function generateCiteKey(fields: Record<string, string>, existing: Set<st
   let key = base;
   let n = 0;
   while (existing.has(key)) {
-    key = base + String.fromCharCode(97 + n);
+    key = base + collisionSuffix(n);
     n++;
   }
   return key;

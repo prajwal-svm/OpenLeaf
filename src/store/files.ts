@@ -18,6 +18,7 @@ import {
   type ProjectInfo,
 } from "@/lib/tauri";
 import { logError } from "@/lib/log";
+import { notifyError } from "@/lib/toast";
 
 interface FileState {
   content: string;
@@ -64,6 +65,21 @@ interface FilesStore {
 }
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+// Every path edited since the last flush. The single debounce timer saves the
+// whole set, so editing file A then switching to B before the timer fires no
+// longer drops A's changes.
+const pendingSaves = new Set<string>();
+// Bumped on every openProject so an in-flight load from a previous project can
+// detect it is stale and stop writing into the newly opened project's state.
+let openSeq = 0;
+
+function cancelPendingAutosave() {
+  if (autosaveTimer) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+  pendingSaves.clear();
+}
 
 export const useFilesStore = create<FilesStore>((set, get) => ({
   projectId: null,
@@ -83,16 +99,32 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
   },
 
   openProject: async (id) => {
-    set({ loading: true, projectId: id });
+    const seq = ++openSeq;
+    // Drop any pending autosave and every buffer from the previous project so
+    // its dirty tabs can't be written into this project's directory.
+    cancelPendingAutosave();
+    set({
+      loading: true,
+      projectId: id,
+      projectName: "",
+      mainDoc: "main.tex",
+      tree: [],
+      files: {},
+      openTabs: [],
+      activePath: null,
+    });
     try {
       const meta = await getProject(id);
+      if (seq !== openSeq) return; // a newer openProject superseded this one
       const tree = await listFiles(id);
+      if (seq !== openSeq) return;
       set({ projectName: meta.name, mainDoc: meta.main_doc, tree });
       // Preload .bib files so citation autocomplete works.
       const bibs = tree.filter((f) => !f.is_dir && f.path.endsWith(".bib"));
       for (const b of bibs) {
         try {
           const content = await readFileContent(id, b.path);
+          if (seq !== openSeq) return;
           set((s) => ({
             files: { ...s.files, [b.path]: { content, dirty: false } },
           }));
@@ -101,12 +133,20 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
         }
       }
       await get().openFile(meta.main_doc || "main.tex");
+    } catch (e) {
+      // Surface the failure and fall back to the library rather than leaving the
+      // app wedged in a half-open project with an empty tree.
+      if (seq === openSeq) {
+        set({ projectId: null });
+        notifyError("open project", e, "Could not open the project. See the app log for details.");
+      }
     } finally {
-      set({ loading: false });
+      if (seq === openSeq) set({ loading: false });
     }
   },
 
-  closeProject: () =>
+  closeProject: () => {
+    cancelPendingAutosave();
     set({
       projectId: null,
       projectName: "",
@@ -114,7 +154,8 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
       files: {},
       openTabs: [],
       activePath: null,
-    }),
+    });
+  },
 
   createProject: async (name) => {
     const id = await apiCreateProject(name);
@@ -182,9 +223,18 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
     set((s) => ({
       files: { ...s.files, [path]: { content, dirty: true } },
     }));
+    // Debounce a save of THIS file. Track every edited path so the single timer
+    // flushes them all, instead of only whichever tab happens to be active when
+    // it fires (which silently lost edits to background tabs).
+    pendingSaves.add(path);
     if (autosaveTimer) clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
-      void get().saveActive();
+      autosaveTimer = null;
+      const paths = [...pendingSaves];
+      pendingSaves.clear();
+      for (const p of paths) {
+        get().saveFile(p).catch((e) => notifyError("autosave", e));
+      }
     }, 1500);
   },
 
@@ -196,11 +246,20 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
 
   saveFile: async (path) => {
     const { projectId, files } = get();
-    if (!projectId || !files[path]) return;
-    await writeFileContent(projectId, path, files[path].content);
-    set((s) => ({
-      files: { ...s.files, [path]: { ...s.files[path], dirty: false } },
-    }));
+    const state = files[path];
+    if (!projectId || !state) return;
+    const written = state.content;
+    await writeFileContent(projectId, path, written);
+    set((s) => {
+      const cur = s.files[path];
+      // The file was deleted while the write was in flight: do not resurrect it
+      // as an entry with undefined content.
+      if (!cur) return {};
+      // Newer keystrokes landed during the write, so what is on disk is already
+      // stale. Leave it dirty; a later autosave will persist the newer content.
+      if (cur.content !== written) return {};
+      return { files: { ...s.files, [path]: { ...cur, dirty: false } } };
+    });
   },
 
   createFile: async (path, isDir) => {
@@ -314,21 +373,33 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
   },
 
   restoreFromGit: async (oid) => {
-    const { projectId, activePath } = get();
+    const { projectId } = get();
     if (!projectId) return;
     await gitRestore(projectId, oid);
+    // The working tree now holds the restored revision, so every in-memory text
+    // buffer is stale. Reload them all (not just the active tab) so a background
+    // dirty tab's next autosave can't clobber the restore. Drop buffers whose
+    // file no longer exists at this revision.
+    cancelPendingAutosave();
     await get().refreshTree();
-    if (activePath) {
+    const paths = Object.keys(get().files);
+    const reloaded: Record<string, FileState> = {};
+    for (const p of paths) {
       try {
-        const content = await readFileContent(projectId, activePath);
-        set((s) => ({
-          files: { ...s.files, [activePath]: { content, dirty: false } },
-          docVersion: s.docVersion + 1,
-        }));
+        reloaded[p] = { content: await readFileContent(projectId, p), dirty: false };
       } catch {
-        /* file may not exist at that revision */
+        /* file gone at this revision: drop the stale buffer */
       }
     }
+    set((s) => ({
+      files: reloaded,
+      docVersion: s.docVersion + 1,
+      openTabs: s.openTabs.filter((t) => reloaded[t] !== undefined || !paths.includes(t)),
+      activePath:
+        s.activePath && paths.includes(s.activePath) && reloaded[s.activePath] === undefined
+          ? null
+          : s.activePath,
+    }));
   },
 }));
 

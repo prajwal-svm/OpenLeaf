@@ -136,6 +136,11 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
   saveMessages: (chatId, messages) => {
     const { projectId, chats } = get();
     if (!projectId) return;
+    // A debounced save can fire after the user switched projects (loadChats
+    // replaced projectId/chats). If the chat isn't in the current project's
+    // list, writing here would needlessly rewrite the new project's chats and
+    // silently drop this update. Skip it rather than corrupt the wrong project.
+    if (!chats.some((c) => c.id === chatId)) return;
     const updated = chats.map((c) =>
       c.id === chatId
         ? { ...c, messages, updatedAt: Date.now(), title: c.title === "New chat" && messages[0]?.role === "user" ? titleFrom(messages[0].content) : c.title }

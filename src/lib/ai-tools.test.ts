@@ -103,6 +103,20 @@ describe("ai-tools: destructive edits require approval (U1)", () => {
     );
   });
 
+  it("replace_in_file inserts $-patterns verbatim (no LaTeX corruption)", async () => {
+    mocks.api.readFileContent.mockResolvedValue("x PLACEHOLDER y");
+    const confirm = vi.fn().mockResolvedValue(true);
+    const tools = createOpenLeafTools({ confirm });
+    // `$$`, `$&`, `$1` etc. must land literally, not be interpreted by
+    // String.prototype.replace's substitution syntax.
+    await tools.replace_in_file.execute({
+      path: "a.tex",
+      find: "PLACEHOLDER",
+      replace: "$$a + $& $1 $`",
+    });
+    expect(mocks.api.writeFileContent).toHaveBeenCalledWith("proj", "a.tex", "x $$a + $& $1 $` y");
+  });
+
   it("replace_in_file errors before asking for approval when find is absent", async () => {
     mocks.api.readFileContent.mockResolvedValue("no match here");
     const confirm = vi.fn().mockResolvedValue(true);

@@ -320,8 +320,14 @@ export function base64ToUint8Array(b64: string): Uint8Array {
 }
 
 export function uint8ToBase64(bytes: Uint8Array): string {
+  // Build the binary string in chunks: a per-byte string concat freezes the UI
+  // on multi-MB buffers (large PDFs). fromCharCode.apply over 32KB subarrays is
+  // well under the argument-count limit and avoids the O(n^2) concat.
+  const CHUNK = 0x8000;
   let s = "";
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK) as unknown as number[]);
+  }
   return btoa(s);
 }
 

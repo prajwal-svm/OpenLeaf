@@ -1,2 +1,7 @@
 allowBuilds:
   esbuild: true
+
+# Force the transitive nanoid (via hunspell-asm) to a patched version.
+# GHSA-mwcw-c2x4-8c55: predictable results in nanoid < 3.3.8.
+overrides:
+  nanoid@<3.3.8: ">=3.3.8"

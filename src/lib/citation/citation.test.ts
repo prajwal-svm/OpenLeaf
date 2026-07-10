@@ -51,6 +51,16 @@ describe("generateCiteKey", () => {
     const fields = { author: "Jane Smith", year: "2020", title: "Vision" };
     expect(generateCiteKey(fields, new Set())).toBe("smith2020vision");
   });
+  it("stays within [a-z] past 26 collisions (no invalid chars)", () => {
+    const fields = { author: "Smith, Jane", year: "2021", title: "Deep nets" };
+    const base = "smith2021deep";
+    // Occupy base plus a..z so the 27th collision must use a multi-letter suffix.
+    const existing = new Set([base]);
+    for (let i = 0; i < 26; i++) existing.add(base + String.fromCharCode(97 + i));
+    const key = generateCiteKey(fields, existing);
+    expect(key).toBe(`${base}aa`);
+    expect(key).toMatch(/^[a-z0-9]+$/);
+  });
 });
 
 describe("setKey", () => {
@@ -107,6 +117,22 @@ describe("arxivXmlToBibtex", () => {
   });
   it("returns empty string when there is no entry", () => {
     expect(arxivXmlToBibtex("<feed></feed>")).toBe("");
+  });
+
+  it("escapes LaTeX specials and decodes XML entities in the title", () => {
+    const withSpecials = `<feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>http://arxiv.org/abs/2001.00001v1</id>
+        <published>2020-01-01T00:00:00Z</published>
+        <title>A &amp; B_C 50%</title>
+        <author><name>Jane Doe</name></author>
+      </entry></feed>`;
+    const bib = arxivXmlToBibtex(withSpecials);
+    // Raw specials must be escaped so the entry compiles as literal text.
+    expect(bib).toContain("A \\& B\\_C 50\\%");
+    // The escaped title round-trips through the parser.
+    const p = parseEntry(bib)!;
+    expect(p.fields.title).toBe("A \\& B\\_C 50\\%");
   });
 });
 

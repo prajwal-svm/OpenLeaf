@@ -50,6 +50,17 @@ describe("parseFile: definitions", () => {
     expect(def("\\subsection{Background}", "section", "Background")?.level).toBe(3);
   });
 
+  it("captures a section title with nested braces whole (exact name span)", () => {
+    const t = "\\section{Intro to \\texttt{foo}} body";
+    const d = def(t, "section", "Intro to \\texttt{foo}")!;
+    expect(d).toBeDefined();
+    expect(spanOk(t, d)).toBe(true);
+    // A following symbol still parses (scanning resumed past the whole title).
+    const t2 = "\\section{A \\texttt{x}}\n\\label{sec:a}";
+    expect(def(t2, "section", "A \\texttt{x}")).toBeDefined();
+    expect(def(t2, "label", "sec:a")).toBeDefined();
+  });
+
   it("parses only bib entries from a .bib file", () => {
     const t = "@article{smith21,\n title={X}\n}\n@book{jones19, title={Y}}";
     const r = parseFile("refs.bib", t);

@@ -27,15 +27,20 @@ export async function compileTaggedAndVerify(): Promise<void> {
   const id = toast.info("Compiling a tagged PDF with LuaLaTeX…", undefined, true);
   try {
     const res = await compileTagged(projectId, main);
-    if (res.has_pdf) {
+    // The tagged compile can take minutes; don't paint its result into a
+    // different project the user may have switched to meanwhile.
+    const switched = useFilesStore.getState().projectId !== files.projectId;
+    if (res.has_pdf && !switched) {
       const bytes = new Uint8Array(await readCompiledPdf(projectId));
-      useCompileStore.setState({
-        pdfBytes: bytes,
-        status: res.success ? "success" : "error",
-        log: res.log,
-        lastCompiledAt: Date.now(),
-      });
-      await usePreflightStore.getState().run();
+      if (useFilesStore.getState().projectId === files.projectId) {
+        useCompileStore.setState({
+          pdfBytes: bytes,
+          status: res.success ? "success" : "error",
+          log: res.log,
+          lastCompiledAt: Date.now(),
+        });
+        await usePreflightStore.getState().run();
+      }
     }
     toast.dismiss(id);
     if (res.success) {

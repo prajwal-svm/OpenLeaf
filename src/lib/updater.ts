@@ -34,7 +34,9 @@ let inFlight = false;
  */
 export async function findUpdate(): Promise<Update | null> {
   if (!isTauri()) return null;
-  const update = await check();
+  // Bound the check so a hung request can't latch `inFlight` forever (see
+  // runUpdateCheck). The updater plugin's check() accepts a `timeout` in ms.
+  const update = await check({ timeout: 15000 });
   return update ?? null;
 }
 

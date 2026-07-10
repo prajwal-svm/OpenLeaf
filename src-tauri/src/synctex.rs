@@ -223,28 +223,36 @@ fn dist(n: &Node, x: f64, y: f64) -> f64 {
 // --- Tauri commands ---
 
 #[tauri::command]
-pub fn synctex_forward(
+pub async fn synctex_forward(
     project_id: String,
     main_doc: String,
     file: String,
     line: i32,
 ) -> Result<Option<SynctexRect>, String> {
-    let text = read_synctex_text(&project_id, &main_doc)?;
-    let doc = parse(&text);
-    Ok(forward(&doc, &file, line))
+    tauri::async_runtime::spawn_blocking(move || -> Result<Option<SynctexRect>, String> {
+        let text = read_synctex_text(&project_id, &main_doc)?;
+        let doc = parse(&text);
+        Ok(forward(&doc, &file, line))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn synctex_inverse(
+pub async fn synctex_inverse(
     project_id: String,
     main_doc: String,
     page: i32,
     x: f64,
     y: f64,
 ) -> Result<Option<SynctexHit>, String> {
-    let text = read_synctex_text(&project_id, &main_doc)?;
-    let doc = parse(&text);
-    Ok(inverse(&doc, page, x, y))
+    tauri::async_runtime::spawn_blocking(move || -> Result<Option<SynctexHit>, String> {
+        let text = read_synctex_text(&project_id, &main_doc)?;
+        let doc = parse(&text);
+        Ok(inverse(&doc, page, x, y))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]

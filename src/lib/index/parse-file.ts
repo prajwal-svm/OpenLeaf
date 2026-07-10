@@ -32,6 +32,29 @@ export function maskComments(text: string): string {
     .join("\n");
 }
 
+/**
+ * Given the index of an opening `{` in `text`, return the index of its matching
+ * `}`, accounting for nested braces and backslash-escaped braces. Returns -1 if
+ * unbalanced. Used so section titles like `\section{Intro to \texttt{x}}` are
+ * captured whole instead of truncating at the first inner `}`.
+ */
+function matchBrace(text: string, openIdx: number): number {
+  let depth = 0;
+  for (let i = openIdx; i < text.length; i++) {
+    const c = text[i];
+    if (c === "\\") {
+      i++; // skip the escaped character
+      continue;
+    }
+    if (c === "{") depth++;
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
 function dirname(p: string): string {
   const i = p.lastIndexOf("/");
   return i >= 0 ? p.slice(0, i) : "";
@@ -95,14 +118,19 @@ export function parseFile(path: string, rawText: string): FileSymbols {
 
   // --- Definitions ---
 
-  // Sectioning.
-  const sec = /\\(part|chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?\s*\{([^}]*)\}/g;
+  // Sectioning. Match up to the opening brace, then brace-match so titles with
+  // nested braces (e.g. `\section{Intro to \texttt{x}}`) are captured whole.
+  const sec = /\\(part|chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?\s*\{/g;
   while ((m = sec.exec(text))) {
-    const title = m[2].trim();
-    const nameStart = m.index + m[0].lastIndexOf("{") + 1;
-    push(defs, "section", title, m.index, m.index + m[0].length, nameStart, nameStart + m[2].length, {
+    const open = m.index + m[0].length - 1; // index of the `{`
+    const close = matchBrace(text, open);
+    if (close < 0) continue;
+    const inner = text.slice(open + 1, close);
+    const nameStart = open + 1;
+    push(defs, "section", inner.trim(), m.index, close + 1, nameStart, nameStart + inner.length, {
       level: SECTION_LEVEL[m[1]],
     });
+    sec.lastIndex = close + 1; // resume scanning after this section's title
   }
 
   // \label.
