@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 // A wrapper worker that polyfills newer JS (Map.getOrInsert*) before loading the
 // real pdf.js worker, so PDFs render on older WebViews too. `?worker&url` lets
@@ -28,12 +28,27 @@ interface PdfViewerProps {
   scale: number;
   /** Inverse SyncTeX: invoked on Cmd/Ctrl-click with (page, x, y) in PDF bp. */
   onInverse?: (page: number, x: number, y: number) => void;
+  /** Reports the page at the top of the viewport and the total page count, so a
+   *  toolbar can show "N of M" and drive prev/next/jump. */
+  onPageChange?: (current: number, total: number) => void;
 }
 
-export function PdfViewer({ data, scale, onInverse }: PdfViewerProps) {
+/** Imperative handle: scroll the viewer to a 1-based page number. */
+export interface PdfViewerHandle {
+  gotoPage: (n: number) => void;
+}
+
+export const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
+  { data, scale, onInverse, onPageChange },
+  ref
+) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onInverseRef = useRef(onInverse);
   onInverseRef.current = onInverse;
+  const onPageChangeRef = useRef(onPageChange);
+  onPageChangeRef.current = onPageChange;
+  // Last page we reported, so scroll churn doesn't spam setState.
+  const currentPageRef = useRef(1);
 
   // Bumped on every (re)load and on unmount, so async work from a superseded
   // document aborts instead of painting into the current one.
@@ -244,6 +259,48 @@ export function PdfViewer({ data, scale, onInverse }: PdfViewerProps) {
     [renderPage]
   );
 
+  // The "current" page is the one straddling the top of the viewport. We only
+  // scan pages the observer already flagged visible (a handful), so this is cheap
+  // even for a 400+ page book.
+  const emitCurrentPage = useCallback(() => {
+    const scrollParent = containerRef.current?.parentElement;
+    const doc = docRef.current;
+    if (!scrollParent || !doc) return;
+    const parentTop = scrollParent.getBoundingClientRect().top;
+    const pages = [...visibleRef.current].sort((a, b) => a - b);
+    let current = pages[0] ?? 1;
+    for (const p of pages) {
+      const wrap = wrapsRef.current.get(p);
+      if (!wrap) continue;
+      // Pages are stacked in order: the last one whose top has reached the
+      // viewport top is the page you're reading.
+      if (wrap.getBoundingClientRect().top <= parentTop + 4) current = p;
+      else break;
+    }
+    if (current !== currentPageRef.current) {
+      currentPageRef.current = current;
+      onPageChangeRef.current?.(current, doc.numPages);
+    }
+  }, []);
+
+  // Scroll the viewer to a page (prev/next/jump from the toolbar), rendering it
+  // on demand since virtualization may not have rasterized it yet.
+  useImperativeHandle(
+    ref,
+    () => ({
+      gotoPage: (n: number) => {
+        const doc = docRef.current;
+        if (!doc) return;
+        const clamped = Math.max(1, Math.min(doc.numPages, Math.floor(n)));
+        const wrap = wrapsRef.current.get(clamped);
+        if (!wrap) return;
+        void renderPage(clamped, scaleRef.current);
+        wrap.scrollIntoView({ block: "start" });
+      },
+    }),
+    [renderPage]
+  );
+
   // Build the placeholder layout for every page and start observing them.
   const buildLayout = useCallback(
     async (doc: pdfjsLib.PDFDocumentProxy) => {
@@ -311,6 +368,9 @@ export function PdfViewer({ data, scale, onInverse }: PdfViewerProps) {
         scale: s,
         ensurePageRendered,
       });
+
+      currentPageRef.current = 1;
+      onPageChangeRef.current?.(1, doc.numPages);
     },
     [renderPage, unrenderPage, enforceCap, ensurePageRendered]
   );
@@ -386,6 +446,25 @@ export function PdfViewer({ data, scale, onInverse }: PdfViewerProps) {
     });
   }, [scale, renderPage, unrenderPage, ensurePageRendered]);
 
+  // Track the page at the top of the viewport as the user scrolls (rAF-throttled).
+  useEffect(() => {
+    const scrollParent = containerRef.current?.parentElement;
+    if (!scrollParent) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        emitCurrentPage();
+      });
+    };
+    scrollParent.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      scrollParent.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [emitCurrentPage, data]);
+
   // Crosshair cursor only while ⌘/Ctrl is held - the SyncTeX-click hint.
   useEffect(() => {
     const container = containerRef.current;
@@ -405,4 +484,4 @@ export function PdfViewer({ data, scale, onInverse }: PdfViewerProps) {
 
   if (!data) return null;
   return <div ref={containerRef} className="flex flex-col items-center p-4" />;
-}
+});

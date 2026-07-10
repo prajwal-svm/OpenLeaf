@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **PDF page navigation** - the preview toolbar now shows the current page and
+  total (like "6 of 100"), with previous and next buttons and a jump-to-page
+  box, next to the zoom controls, so you can move through long documents without
+  scrolling.
+- **Smooth large documents** - the PDF preview is virtualized: it only renders
+  the pages near the viewport (with a hard cap, evicting the farthest), so a
+  hundreds-of-pages thesis or book scrolls smoothly with bounded memory.
 - **Auto-citation** - add a reference by pasting a DOI, arXiv id, or URL (fetched
   directly), or by typing a paper title to search Crossref and pick a result.
   OpenLeaf appends a correctly-keyed BibTeX entry to your project's .bib
@@ -74,6 +81,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   With an engine present, Preflight can compile a tagged PDF and verify it in one
   step. The default Tectonic engine is unchanged for everyone who does not need
   tagging.
+
+### Fixed
+
+- **Editor clipboard on macOS** - Cmd+C / Cmd+V / Cmd+X / Cmd+A work in the
+  editor again. The custom application menu had replaced the default one and
+  dropped the native Edit menu whose predefined items bind those shortcuts.
 
 ## [0.2.1]
 

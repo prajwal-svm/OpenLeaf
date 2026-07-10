@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Contrast, FileText, Maximize, Minus, Play, Plus, Save, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Contrast, FileText, Maximize, Minus, Play, Plus, Save, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
-import { PdfViewer } from "@/components/pdf/PdfViewer";
+import { PdfViewer, type PdfViewerHandle } from "@/components/pdf/PdfViewer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LogPane } from "@/components/editor/LogPane";
 import { useCompileStore } from "@/store/compile";
@@ -32,6 +32,33 @@ export function PreviewPane() {
   const [saving, setSaving] = useState(false);
   const [inverted, setInverted] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  const [page, setPage] = useState(1);
+  const [numPages, setNumPages] = useState(0);
+  const [pageInput, setPageInput] = useState("1");
+  const pdfRef = useRef<PdfViewerHandle>(null);
+
+  // Keep the jump box in sync with the page the viewer reports, unless it's being
+  // edited (focused).
+  useEffect(() => {
+    setPageInput(String(page));
+  }, [page]);
+
+  // No PDF, no page nav.
+  useEffect(() => {
+    if (!pdfBytes) {
+      setNumPages(0);
+      setPage(1);
+    }
+  }, [pdfBytes]);
+
+  const jumpToPage = () => {
+    const n = Number.parseInt(pageInput, 10);
+    if (Number.isNaN(n) || n < 1 || n > numPages) {
+      setPageInput(String(page)); // invalid: revert to the current page
+      return;
+    }
+    if (n !== page) pdfRef.current?.gotoPage(n); // avoid snapping on an unchanged blur
+  };
 
   const submitSavePdf = async () => {
     if (!projectId || !pdfBytes) return;
@@ -122,6 +149,52 @@ export function PreviewPane() {
 
         {tab === "pdf" && (
           <div className="ml-auto flex items-center gap-0.5">
+            {numPages > 0 && (
+              <>
+                <Tooltip label="Previous page">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    disabled={page <= 1}
+                    onClick={() => pdfRef.current?.gotoPage(page - 1)}
+                    aria-label="Previous page"
+                  >
+                    <ChevronUp className="size-3.5" />
+                  </Button>
+                </Tooltip>
+                <div className="flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
+                  <input
+                    value={pageInput}
+                    onChange={(e) => setPageInput(e.target.value.replace(/[^0-9]/g, ""))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        jumpToPage();
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    onBlur={jumpToPage}
+                    onFocus={(e) => e.target.select()}
+                    aria-label="Page number"
+                    className="w-8 rounded border border-input bg-background px-1 py-0.5 text-center text-foreground outline-none focus:border-primary"
+                  />
+                  <span>of {numPages}</span>
+                </div>
+                <Tooltip label="Next page">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    disabled={page >= numPages}
+                    onClick={() => pdfRef.current?.gotoPage(page + 1)}
+                    aria-label="Next page"
+                  >
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </Tooltip>
+                <div className="mx-1 h-4 w-px bg-border" />
+              </>
+            )}
             <Tooltip label="Zoom out">
               <Button variant="ghost" size="icon" className="size-7" onClick={() => setScale((s) => Math.max(MIN_SCALE, s - 0.2))} aria-label="Zoom out">
                 <Minus className="size-3.5" />
@@ -198,7 +271,16 @@ export function PreviewPane() {
                 </div>
               }
             >
-              <PdfViewer data={pdfBytes} scale={scale} onInverse={inverseFromClick} />
+              <PdfViewer
+                ref={pdfRef}
+                data={pdfBytes}
+                scale={scale}
+                onInverse={inverseFromClick}
+                onPageChange={(current, total) => {
+                  setPage(current);
+                  setNumPages(total);
+                }}
+              />
             </ErrorBoundary>
           </div>
         ) : (
