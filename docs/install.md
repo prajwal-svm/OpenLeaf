@@ -1,50 +1,35 @@
 # Installing OpenLeaf
 
-OpenLeaf is built with [Tauri 2](https://tauri.app) (Rust + React).
+There are two ways to get OpenLeaf: download a ready-to-run app for your
+platform, or build it from source. Downloading is the fast path and works for
+almost everyone. Building from source is for contributors, or for anyone on a
+platform we don't ship a prebuilt app for yet.
 
-**Just want to use it?** Download a prebuilt installer from the [latest release](https://github.com/prajwal-svm/OpenLeaf/releases/latest) (macOS, Windows, Linux). Those builds aren't code-signed/notarized yet (that's on the [roadmap](../README.md#roadmap)); see [First run](#first-run-running-a-downloaded-build) below for the one-time unlock. The rest of this page is for building from source.
+## Download the app
 
-## Prerequisites
+Grab the latest installer from the [releases page](https://github.com/prajwal-svm/OpenLeaf/releases/latest).
 
-- Node.js 20+ and pnpm
-- Rust (stable), installed via [rustup](https://rustup.rs)
-- Tauri 2 system dependencies for your OS, see the [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/)
-- Optional, for Word/HTML export: [pandoc](https://pandoc.org/installing.html)
+| Platform | Download | What to do |
+|---|---|---|
+| macOS (Apple Silicon) | `.dmg` | M1 or newer. Open the dmg, drag OpenLeaf to Applications. |
+| Windows (x86_64) | `.msi` or `-setup.exe` | Run either installer and follow the prompts. |
+| Linux (x86_64) | `.AppImage`, `.deb`, or `.rpm` | AppImage runs anywhere; use the deb or rpm if you'd rather go through your package manager. |
 
-## Run from source
+That's the whole install. Open the app and you're in. No account, no sign-in.
 
-```bash
-git clone https://github.com/prajwal-svm/OpenLeaf.git
-cd OpenLeaf
+## First launch
 
-# 1. Fetch the Tectonic compiler sidecar for your platform
-./scripts/fetch-tectonic.sh all     # or: aarch64-apple-darwin / x86_64-pc-windows-msvc / ...
-
-# 2. Install frontend deps
-pnpm install
-
-# 3. Launch the dev app
-pnpm tauri dev
-```
-
-## Build a production bundle
-
-```bash
-pnpm tauri build      # produces a .dmg / .msi / .AppImage in src-tauri/target/release/bundle
-```
-
-## First run (running a downloaded build)
-
-Current builds are **not code-signed or notarized yet** (that's on the roadmap),
-so the OS will warn the first time you open the app. It's safe to open; here's how
-to get past the warning.
+The apps aren't code-signed or notarized yet, so the first time you open one the
+OS puts up a warning. The app is safe to open; you just have to tell the OS you
+meant it. Signing is on the [roadmap](../README.md#roadmap), and once it ships
+this step goes away.
 
 **macOS.** Double-clicking may say *"OpenLeaf is damaged and can't be opened"* or
 *"can't be opened because Apple cannot check it"*. Either:
 
 - Right-click (or Control-click) the app in Applications and choose **Open**, then
   **Open** again in the dialog, or
-- Run once in Terminal to clear the quarantine flag (the full path avoids a
+- Run this once in Terminal to clear the quarantine flag (the full path avoids a
   non-Apple `xattr` that some setups have in PATH, which lacks `-r`):
 
   ```bash
@@ -69,6 +54,40 @@ Every compile after that is fast and works offline. (A pre-warmed offline bundle
 for a true zero-internet first run is on the roadmap.)
 
 Your files, tokens, and AI keys never leave your machine.
+
+## Build from source
+
+For contributors, or to run OpenLeaf on a platform we don't ship a prebuilt app
+for. It's built with [Tauri 2](https://tauri.app) (Rust + React).
+
+### Prerequisites
+
+- Node.js 20+ and pnpm
+- Rust (stable), installed via [rustup](https://rustup.rs)
+- Tauri 2 system dependencies for your OS, see the [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/)
+- Optional, for Word/HTML export: [pandoc](https://pandoc.org/installing.html)
+
+### Run the dev app
+
+```bash
+git clone https://github.com/prajwal-svm/OpenLeaf.git
+cd OpenLeaf
+
+# 1. Fetch the Tectonic compiler sidecar for your platform
+./scripts/fetch-tectonic.sh all     # or: aarch64-apple-darwin / x86_64-pc-windows-msvc / ...
+
+# 2. Install frontend deps
+pnpm install
+
+# 3. Launch the dev app
+pnpm tauri dev
+```
+
+### Build a production bundle
+
+```bash
+pnpm tauri build      # produces a .dmg / .msi / .AppImage in src-tauri/target/release/bundle
+```
 
 ## The 30-second tour
 

@@ -6,13 +6,13 @@ What OpenLeaf can do. All of it runs on your machine.
 
 - LaTeX autocomplete for commands, `\ref`/`\label`, and `\cite` (parsed from your `.bib`), plus file names from the tree. Press Ctrl-Space to trigger.
 - Slash commands: type `/` for a Notion-style insert menu with `/figure`, `/table`, `/section`, `/cite`, and `/math`.
-- Find and replace with `⌘F`: a VSCode-style widget with case, whole-word, and
-  regex toggles, a live match count, and a collapsible replace row. Go to line
-  with `⌘⇧L`.
+- Find and replace with `⌘F`: a VSCode-style widget with case, whole-word,
+  regex, and preserve-case toggles, a live match count, and a collapsible replace
+  row. Go to line with `⌘⇧L`.
 - Code folding: click the gutter arrow to collapse a `\begin…\end` environment or
   a section (folds until the next same-or-higher-level section).
 - Vim mode, toggled in Settings → Appearance (or the `⌘/` shortcuts).
-- Spellcheck via Hunspell (WASM). It underlines misspellings and skips commands, math, and comments.
+- Spellcheck (Hunspell) and grammar (Harper) run entirely offline as WASM. They underline issues and skip commands, math, and comments.
 - Linting: compile errors show up as red squiggles and gutter marks. Click one to jump to it.
 
 ## Code intelligence
@@ -40,6 +40,7 @@ OpenLeaf understands your whole project, not just the open file.
 ## PDF preview (pdf.js)
 
 - Continuous scroll, zoom in and out, fit-to-width, fit-to-height, page navigation, and fullscreen.
+- The viewer is virtualized: it only renders the pages near your viewport, so it stays smooth and light on memory even for documents hundreds of pages long, like a thesis or a book.
 - Download PDF (with a custom filename) and download source as a `.zip`.
 - SyncTeX overlay for bidirectional source↔PDF navigation.
 
@@ -145,3 +146,7 @@ Light and dark mode (it respects your system setting) with Geist design tokens. 
 ## Command palette
 
 Press `⌘K` to fuzzy-search every action: new file, compile, switch view, go-to-line, toggle theme, insert figure, and more.
+
+## Updates
+
+Settings, Help & About shows the version you're running and checks for a newer release. When one is available, it downloads and installs in place from a signed update feed the app verifies first. You can also trigger a check from the app menu.

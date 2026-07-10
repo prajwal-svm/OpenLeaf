@@ -152,21 +152,73 @@ The assistant can read your files, compile them, look at the resulting PDF, edit
 
 ## Features
 
-Editing runs on CodeMirror 6, with LaTeX autocomplete for `\ref`, `\cite`, and file names, slash-commands, find and replace, Vim mode, and Hunspell spellcheck.
+The full list. Everything here runs on your machine. For the detailed tour, see [docs/features.md](docs/features.md).
 
-Compilation uses Tectonic (XeTeX) locally, with debounced auto-compile, `⌘↵` to recompile, and bidirectional SyncTeX.
+**Editor (CodeMirror 6)**
+- LaTeX autocomplete for commands, `\ref`/`\label`, `\cite` (parsed from your `.bib`), and file names from the tree
+- Slash commands: type `/` for a Notion-style insert menu (`/figure`, `/table`, `/section`, `/cite`, `/math`)
+- Find and replace (`⌘F`) with case, whole-word, and regex toggles, a live match count, and preserve-case replace; go to line with `⌘⇧L`
+- Code folding for `\begin…\end` environments and section trees
+- Vim mode, toggleable in Settings
+- Offline spellcheck (Hunspell WASM) and grammar (Harper), masking commands, math, and comments so only prose is checked
+- Compile errors surface as inline red squiggles and gutter marks
 
-Git support covers auto-commit on save, the full log, diffs, and one-click restore.
+**Code intelligence (whole-project, not just the open file)**
+- Go to definition (F12 or Cmd/Ctrl-click) for `\ref`, `\cite`, `\gls`, custom macros, and environments, across files
+- Find references (Shift-F12) lists every use in a side panel
+- Rename symbol (F2) updates a label, citation key, or macro everywhere at once, and warns on clashes
+- Hover a `\ref`, `\cite`, or macro to see where it's defined
+- The AI can read a project map (outline, labels, citations, macros, file graph)
 
-The AI panel supports 8+ providers plus local Ollama, and it can read, compile, and fix your document.
+**Compile and PDF**
+- Tectonic (XeTeX) runs as a bundled sidecar, producing ATS-clean output with embedded subset fonts
+- Debounced auto-compile (~2.5s) plus manual recompile with `⌘↵`
+- Offline mode compiles with `--only-cached` and never touches the network
+- pdf.js viewer with continuous scroll, zoom, fit-to-width/height, page navigation, and fullscreen
+- Bidirectional SyncTeX: Cmd/Ctrl-click the PDF to land on the source line, or jump source-to-PDF with `⌘⇧J`
+- The viewer is virtualized, so it stays smooth on documents hundreds of pages long
 
-Resume support gives you ATS-clean output, one-page templates, and a branch per company.
+**Preflight: ATS and accessibility checks**
+- Two scores out of 100: ATS readiness and accessibility
+- Source checks for multi-column layouts, missing image alt text, icon-hidden contact info, layout tables, skipped heading levels, undescriptive links, missing document language or PDF title, and more
+- Output checks (after compiling) for reading order, garbled or unmapped text, and pages with no selectable text
+- Plain-text preview of what a parser or screen reader actually sees, plus a simulated ATS extraction for resumes
+- Reference and asset checks for undefined citations, duplicate labels, duplicate bib entries, and missing includes
+- Prepare-for-accessible-export rewrites your document with the tagging setup a LuaLaTeX engine needs, showing every change first
+- Optional LuaLaTeX engine: use an existing TeX Live or install TinyTeX (about 100 MB) on demand to compile and verify a tagged, Section 508 / PDF-UA oriented PDF
 
-For academic work there are multi-file projects, `.bib` bibliographies, figures, and cross-references.
+**Projects, files, and history**
+- Library home with thumbnails, last-edited time, and export history
+- Templates: Blank, One-Page Resume, and IEEE Paper
+- Source tree: create, rename, delete, duplicate, drag-drop, upload, and set the main document
+- Multi-file support for `\input`, images (PNG/JPG/PDF/EPS), and `.bib`, with editor tabs
+- Autosave to disk shortly after you stop typing
+- Every project is a Git repo with auto-commit on save, a full history view, side-by-side diffs, and one-click restore
 
-You can export to PDF (always ATS-clean), and to Word, HTML, or Markdown through pandoc.
+**Source control and sync**
+- Stage or discard changes, write a message, and Commit, Push, or Pull
+- Publish to GitHub (new or existing repo) with ahead/behind indicators
 
-For privacy there's a full offline mode, no account, and no telemetry.
+**Citations**
+- Paste a DOI, arXiv id, or URL to fetch an entry, or search Crossref by title
+- OpenLeaf appends a correctly-keyed BibTeX entry (deduplicated by DOI) and inserts the `\cite` at your cursor
+- Lookups send only the identifier or title, and respect offline mode
+
+**AI assistant (bring your own model)**
+- Reads and writes files, find-and-replace, create, rename, delete
+- Compiles, reads the log, and extracts PDF text to verify its own edits
+- Searches across projects, sets the main doc, toggles the theme
+- Every file-changing edit pauses for approval with a red/green diff, and the decision stays in the chat
+- Custom instructions, sandboxed so they can't reveal or override the built-in prompt
+- Providers: OpenAI, Anthropic, Groq, OpenRouter, DeepSeek, Mistral, xAI, Z.AI, or local Ollama
+
+**Export and the rest**
+- PDF export (always ATS-clean) and source-as-`.zip`
+- Word (.docx), HTML, and Markdown via pandoc, installed separately
+- Light and dark themes with Geist tokens, following your system setting
+- Command palette (`⌘K`) to fuzzy-search every action
+- In-app version display and update checker
+- Full offline mode, no account, no telemetry
 
 <br/>
 

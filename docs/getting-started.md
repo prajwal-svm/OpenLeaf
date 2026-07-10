@@ -4,26 +4,11 @@ In about two minutes you'll have a project open, compiled, and exporting a PDF. 
 
 ## 1. Install
 
-The quickest path today is building from source. Prebuilt installers are on the roadmap.
+Download the app for your platform from the [latest release](https://github.com/prajwal-svm/OpenLeaf/releases/latest): a `.dmg` for macOS (Apple Silicon), a `.msi` or `-setup.exe` for Windows, or an `.AppImage`, `.deb`, or `.rpm` for Linux. Open it and you're ready. The builds aren't signed yet, so your OS warns on first launch; the [install guide](install.md#first-launch) has the one-time unlock for each platform.
 
-Prerequisites:
+Prefer to build from source? See [Build from source](install.md#build-from-source) in the install guide.
 
-- [Node.js 20+](https://nodejs.org) and [pnpm](https://pnpm.io)
-- [Rust (stable)](https://rustup.rs)
-- [Tauri 2 system deps](https://v2.tauri.app/start/prerequisites/) for your OS
-- Optional: [pandoc](https://pandoc.org/installing.html) for Word/HTML/Markdown export
-
-Build and run:
-
-```bash
-git clone https://github.com/prajwal-svm/OpenLeaf.git
-cd OpenLeaf
-./scripts/fetch-tectonic.sh all     # fetch the LaTeX compiler sidecar
-pnpm install
-pnpm tauri dev
-```
-
-The first run fetches LaTeX packages (a few hundred MB), so later compiles are fully offline.
+The first compile fetches LaTeX packages (a few hundred MB) and caches them, so every compile after that is fully offline.
 
 ## 2. Create your first project
 
