@@ -87,7 +87,7 @@ interface TreeCtx {
   onOpen: (p: string) => void;
   onDelete: (p: string) => void;
   onSetMain: (p: string) => void;
-  onCopy: (p: string) => void;
+  onCopy: (p: string, isDir: boolean) => void;
   // rename (inline)
   renamePath: string | null;
   renameValue: string;
@@ -499,7 +499,7 @@ function TreeRow({ node, depth, ctx }: { node: TreeNode; depth: number; ctx: Tre
             <ContextMenuItem onClick={() => ctx.onStartRename(node.path, node.name)}>
               <Pencil className="mr-2 size-4" /> Rename
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => void ctx.onCopy(node.path)}>
+            <ContextMenuItem onClick={() => void ctx.onCopy(node.path, node.isDir)}>
               <CopyPlus className="mr-2 size-4" /> Make a copy
             </ContextMenuItem>
             <ContextMenuSeparator />

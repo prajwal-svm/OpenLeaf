@@ -57,7 +57,7 @@ interface FilesStore {
   createFile: (path: string, isDir: boolean) => Promise<void>;
   deleteEntry: (path: string) => Promise<void>;
   renameEntry: (from: string, to: string) => Promise<void>;
-  copyEntry: (path: string) => Promise<void>;
+  copyEntry: (path: string, isDir?: boolean) => Promise<void>;
   applyExternalWrite: (path: string, content: string) => void;
   applyExternalDelete: (path: string) => void;
   applyExternalRename: (from: string, to: string) => void;
@@ -311,13 +311,15 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
     await get().refreshTree();
   },
 
-  copyEntry: async (path) => {
+  copyEntry: async (path, isDir = false) => {
     const { projectId } = get();
     if (!projectId) return;
     const slash = path.lastIndexOf("/");
     const dir = slash >= 0 ? path.slice(0, slash) : "";
     const file = slash >= 0 ? path.slice(slash + 1) : path;
-    const dot = file.lastIndexOf(".");
+    // Only split off an extension for files; a folder name is copied whole (so
+    // "v1.0" doesn't become "v1 copy.0").
+    const dot = isDir ? -1 : file.lastIndexOf(".");
     const base = dot > 0 ? file.slice(0, dot) : file;
     const ext = dot > 0 ? file.slice(dot) : "";
     const to = dir ? `${dir}/${base} copy${ext}` : `${base} copy${ext}`;

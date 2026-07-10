@@ -280,16 +280,35 @@ pub fn rename_file(project_id: String, from: String, to: String) -> Result<(), S
     std::fs::rename(&src, &dst).map_err(|e| format!("rename failed: {e}"))
 }
 
-/// Byte-level copy of a file within a project (handles binary files like PDFs).
+/// Copy a file or folder within a project. Files are byte-level copied (handles
+/// binaries like PDFs); folders are copied recursively (symlinks skipped, depth
+/// capped). Async + spawn_blocking so a large recursive copy never blocks the UI.
 #[tauri::command]
-pub fn copy_file(project_id: String, from: String, to: String) -> Result<(), String> {
-    let src = resolve(&project_id, &from)?;
-    let dst = resolve(&project_id, &to)?;
-    if let Some(parent) = dst.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    std::fs::copy(&src, &dst).map_err(|e| format!("copy failed: {e}"))?;
-    Ok(())
+pub async fn copy_file(project_id: String, from: String, to: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let src = resolve(&project_id, &from)?;
+        let dst = resolve(&project_id, &to)?;
+        if dst == src {
+            return Err("source and destination are the same".into());
+        }
+        // Never copy a folder into itself or a descendant (would recurse forever).
+        if dst.starts_with(&src) {
+            return Err("cannot copy a folder into itself".into());
+        }
+        if let Some(parent) = dst.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let meta = std::fs::symlink_metadata(&src).map_err(|e| e.to_string())?;
+        if meta.is_dir() {
+            copy_dir_recursive(&src, &dst, 0)
+        } else {
+            std::fs::copy(&src, &dst)
+                .map(|_| ())
+                .map_err(|e| format!("copy failed: {e}"))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Write base64-encoded bytes to a project file (used to save a compiled PDF

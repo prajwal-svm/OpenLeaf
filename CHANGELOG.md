@@ -102,6 +102,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Editor and settings polish** - removed the redundant filename row under the
   editor toolbar (the open tab already shows it); in Settings, Help & About the
   Documentation link opens the docs site and License opens the LICENSE file.
+- **Copy a folder** - "Make a copy" now recursively copies a folder and its
+  contents; it previously only worked on files (and silently failed on folders).
 
 ## [0.2.1]
 
