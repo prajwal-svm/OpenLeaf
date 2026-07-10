@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Columns2, Contrast, FileText, Maximize, Minus, Play, Plus, RectangleVertical, Save, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Columns2, Contrast, FileText, Maximize, Minimize, Minus, PanelTopClose, PanelTopOpen, Play, Plus, RectangleVertical, Save, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { PdfViewer, type PdfViewerHandle, type PdfLayout } from "@/components/pdf/PdfViewer";
@@ -31,15 +31,35 @@ export function PreviewPane() {
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving] = useState(false);
   const [inverted, setInverted] = useState(false);
-  const [presenting, setPresenting] = useState(false);
   const [page, setPage] = useState(1);
   const [numPages, setNumPages] = useState(0);
   const [pageInput, setPageInput] = useState("1");
   const [layout, setLayout] = useState<PdfLayout>("single");
+  // Fullscreen the preview pane itself (toolbar + PDF), independent of the app.
+  const [isFs, setIsFs] = useState(false);
+  const [fsToolbarHidden, setFsToolbarHidden] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<PdfViewerHandle>(null);
   const scrollBoxRef = useRef<HTMLDivElement>(null);
   const scaleRef = useRef(scale);
   scaleRef.current = scale;
+
+  // Track fullscreen of the preview pane (only when the pane itself is the
+  // fullscreen element), and reset the hidden-toolbar state when it exits.
+  useEffect(() => {
+    const onChange = () => {
+      const fs = document.fullscreenElement === rootRef.current;
+      setIsFs(fs);
+      if (!fs) setFsToolbarHidden(false);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    else void rootRef.current?.requestFullscreen?.().catch(() => {});
+  };
 
   // Trackpad pinch-to-zoom, scoped to the PDF scroll area only. Two webview
   // families report the gesture differently, so handle both and leave ordinary
@@ -134,10 +154,27 @@ export function PreviewPane() {
   const severity: "error" | "warning" | "ok" = hasError ? "error" : hasWarning ? "warning" : "ok";
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div ref={rootRef} className="relative flex h-full flex-col bg-background">
+      {/* In fullscreen with the toolbar hidden, a small control to bring it back. */}
+      {isFs && fsToolbarHidden && (
+        <Tooltip label="Show toolbar">
+          <button
+            onClick={() => setFsToolbarHidden(false)}
+            aria-label="Show toolbar"
+            className="absolute right-3 top-3 z-20 flex size-8 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur transition-colors hover:bg-black/60 hover:text-white"
+          >
+            <PanelTopOpen className="size-4" />
+          </button>
+        </Tooltip>
+      )}
       {/* Minimal toolbar: logs toggle + zoom. Never wraps; when the pane is
           narrow it scrolls horizontally with a thin scrollbar that shows on hover. */}
-      <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto whitespace-nowrap border-b px-2 [&_button]:shrink-0 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-border">
+      <div
+        className={cn(
+          "flex h-9 shrink-0 items-center gap-1 overflow-x-auto whitespace-nowrap border-b px-2 [&_button]:shrink-0 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-border",
+          isFs && fsToolbarHidden && "hidden",
+        )}
+      >
         <button
           onClick={() => setTab(tab === "logs" ? "pdf" : "logs")}
           className={cn(
@@ -303,18 +340,31 @@ export function PreviewPane() {
                 {inverted ? <Contrast className="size-3.5 text-primary" /> : <Contrast className="size-3.5" />}
               </Button>
             </Tooltip>
-            <Tooltip label="Fullscreen preview">
+            {isFs && (
+              <Tooltip label="Hide toolbar">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={() => setFsToolbarHidden(true)}
+                  aria-label="Hide toolbar"
+                >
+                  <PanelTopClose className="size-3.5" />
+                </Button>
+              </Tooltip>
+            )}
+            <Tooltip label={isFs ? "Exit fullscreen" : "Fullscreen preview"}>
               <Button
                 variant="ghost"
                 size="icon"
                 className="size-7"
                 disabled={!pdfBytes}
-                // Fullscreen the PDF preview only (an overlay), independent of the
-                // app's layout or window state. Scrollable; Esc exits.
-                onClick={() => setPresenting(true)}
-                aria-label="Fullscreen preview"
+                // Fullscreen the preview pane itself (toolbar + PDF), independent
+                // of the app's layout or window. Scrollable; Esc exits.
+                onClick={toggleFullscreen}
+                aria-label={isFs ? "Exit fullscreen" : "Fullscreen preview"}
               >
-                <Maximize className="size-3.5" />
+                {isFs ? <Minimize className="size-3.5" /> : <Maximize className="size-3.5" />}
               </Button>
             </Tooltip>
           </div>
@@ -425,15 +475,6 @@ export function PreviewPane() {
           </div>
         </div>
       )}
-
-      {/* Presentation mode - fullscreen PDF */}
-      {presenting && pdfBytes && (
-        <PresentationView
-          data={pdfBytes}
-          inverted={inverted}
-          onExit={() => setPresenting(false)}
-        />
-      )}
     </div>
   );
 }
@@ -472,54 +513,3 @@ function CompileProgress({ estimateMs }: { estimateMs: number }) {
   );
 }
 
-function PresentationView({
-  data,
-  inverted,
-  onExit,
-}: {
-  data: Uint8Array;
-  inverted: boolean;
-  onExit: () => void;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (el?.requestFullscreen) {
-      el.requestFullscreen().catch(() => {});
-    }
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onExit(); };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    };
-  }, [onExit]);
-
-  return (
-    <div
-      ref={containerRef}
-      className="fixed inset-0 z-[100] flex flex-col bg-black"
-      style={inverted ? { filter: "invert(1) hue-rotate(180deg)" } : undefined}
-    >
-      <button
-        onClick={onExit}
-        className="absolute right-3 top-3 z-10 flex size-9 items-center justify-center rounded-full bg-white/10 text-white/80 backdrop-blur hover:bg-white/20 hover:text-white"
-        aria-label="Exit presentation"
-      >
-        <X className="size-5" />
-      </button>
-      <div className="min-h-0 flex-1 overflow-auto">
-        <ErrorBoundary
-          fallback={
-            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-white/70">
-              The PDF preview crashed. Exit and recompile to try again.
-            </div>
-          }
-        >
-          <PdfViewer data={data} scale={1.25} />
-        </ErrorBoundary>
-      </div>
-    </div>
-  );
-}
