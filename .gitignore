@@ -30,3 +30,4 @@ src-tauri/binaries/*
 
 # Local planning docs — not committed
 docs/planning/
+docs/superpowers/
