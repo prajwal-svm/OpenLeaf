@@ -72,6 +72,9 @@ export const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function Pd
   const observerRef = useRef<IntersectionObserver | null>(null);
   // Page dimensions at scale 1 (from page 1), for sizing not-yet-rendered pages.
   const baseDimsRef = useRef<{ w: number; h: number }>({ w: 612, h: 792 });
+  // Debounce for crisp re-rasterization: zoom resizes instantly (cheap) and only
+  // re-renders at full resolution once the scale settles, so pinch stays smooth.
+  const rasterTimerRef = useRef<number | null>(null);
 
   // Minimal link service: open external links in the system browser, ignore
   // internal destinations (no in-app page router).
@@ -431,29 +434,52 @@ export const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function Pd
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, buildLayout]);
 
-  // Re-render on zoom without reloading: resize placeholders, re-rasterize the
-  // pages currently in view at the new scale, and drop off-screen stale ones.
+  // Re-render on zoom without reloading. Rasterizing pages is expensive, so a
+  // pinch that fires dozens of scale changes a second must NOT rasterize on each
+  // one, or the main thread stalls and the gesture stutters (one jump per pinch).
+  // Instead: resize every placeholder and CSS-stretch the already-rendered
+  // canvases instantly (cheap, smooth), then re-rasterize crisply once the scale
+  // settles (debounced).
   useEffect(() => {
     const doc = docRef.current;
     if (!doc) return;
     scaleRef.current = scale;
-    for (const [p, wrap] of wrapsRef.current) {
-      if (!visibleRef.current.has(p)) {
-        wrap.style.width = `${Math.floor(baseDimsRef.current.w * scale)}px`;
-        wrap.style.height = `${Math.floor(baseDimsRef.current.h * scale)}px`;
-        wrap.style.setProperty("--scale-factor", String(scale));
+    const w = Math.floor(baseDimsRef.current.w * scale);
+    const h = Math.floor(baseDimsRef.current.h * scale);
+
+    // Instant + cheap: keep scroll geometry correct and scale the existing
+    // bitmaps so the zoom tracks the gesture (they sharpen a moment later).
+    for (const [, wrap] of wrapsRef.current) {
+      wrap.style.width = `${w}px`;
+      wrap.style.height = `${h}px`;
+      wrap.style.setProperty("--scale-factor", String(scale));
+      const canvas = wrap.querySelector<HTMLElement>(".pdf-canvas");
+      if (canvas) {
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
       }
     }
-    // Off-screen pages rendered at the old scale are now stale; drop them.
-    for (const p of [...renderedRef.current.keys()]) {
-      if (!visibleRef.current.has(p)) unrenderPage(p);
-    }
-    for (const p of visibleRef.current) void renderPage(p, scale);
-    registerPdfView({
-      pages: [...wrapsRef.current.entries()].map(([pageNo, el]) => ({ pageNo, el })),
-      scale,
-      ensurePageRendered,
-    });
+
+    // Trailing: re-rasterize the visible pages at full resolution once zooming
+    // stops, drop off-screen pages left at the old scale, and refresh SyncTeX's
+    // scale (none of which needs to run on every event of a pinch).
+    if (rasterTimerRef.current) window.clearTimeout(rasterTimerRef.current);
+    rasterTimerRef.current = window.setTimeout(() => {
+      const target = scaleRef.current;
+      for (const p of [...renderedRef.current.keys()]) {
+        if (!visibleRef.current.has(p)) unrenderPage(p);
+      }
+      for (const p of visibleRef.current) void renderPage(p, target);
+      registerPdfView({
+        pages: [...wrapsRef.current.entries()].map(([pageNo, el]) => ({ pageNo, el })),
+        scale: target,
+        ensurePageRendered,
+      });
+    }, 120);
+
+    return () => {
+      if (rasterTimerRef.current) window.clearTimeout(rasterTimerRef.current);
+    };
   }, [scale, renderPage, unrenderPage, ensurePageRendered]);
 
   // Track the page at the top of the viewport as the user scrolls (rAF-throttled).
