@@ -28,7 +28,6 @@ import {
   Type as TypeIcon,
 } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
-import { useTheme } from "@/lib/theme";
 import { nodeTypes } from "@/components/diagram/nodes/ShapeNode";
 import { DiagramEditContext } from "@/components/diagram/nodes/edit-context";
 import { Inspector } from "@/components/diagram/Inspector";
@@ -140,7 +139,6 @@ function CanvasInner({
   model: DiagramModel;
   onChange: (m: DiagramModel) => void;
 }) {
-  const { theme } = useTheme();
   const { screenToFlowPosition } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(model.nodes.map(modelNodeToRf));
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(model.edges.map(modelEdgeToRf));
@@ -397,7 +395,7 @@ function CanvasInner({
               nodes={nodes}
               edges={edges}
               nodeTypes={nodeTypes}
-              colorMode={theme === "dark" ? "dark" : "light"}
+              colorMode="light"
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
