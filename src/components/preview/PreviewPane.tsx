@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Columns2, Contrast, FileText, Maximize, Minimize, Minus, PanelTopClose, PanelTopOpen, Play, Plus, RectangleVertical, Save, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Columns2, Contrast, FileText, Maximize, Minimize, Minus, PanelTopClose, PanelTopOpen, Play, Plus, RectangleVertical, Save, SquareArrowOutUpRight, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { PdfViewer, type PdfViewerHandle, type PdfLayout } from "@/components/pdf/PdfViewer";
@@ -9,6 +9,7 @@ import { useCompileStore } from "@/store/compile";
 import { useFilesStore } from "@/store/files";
 import { inverseFromClick } from "@/features/synctex";
 import { saveFileBase64, uint8ToBase64 } from "@/lib/tauri";
+import { openPreviewWindow } from "@/lib/preview-window";
 import { notifyError, toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,7 @@ export function PreviewPane() {
   const compileTimeMs = useCompileStore((s) => s.compileTimeMs);
   const lastCompiledAt = useCompileStore((s) => s.lastCompiledAt);
   const projectId = useFilesStore((s) => s.projectId);
+  const projectName = useFilesStore((s) => s.projectName);
   const refreshTree = useFilesStore((s) => s.refreshTree);
   const mainDoc = useFilesStore((s) => s.mainDoc);
   const [scale, setScale] = useState(1.0);
@@ -340,6 +342,20 @@ export function PreviewPane() {
                 {inverted ? <Contrast className="size-3.5 text-primary" /> : <Contrast className="size-3.5" />}
               </Button>
             </Tooltip>
+            {!isFs && (
+              <Tooltip label="Open preview in a new window">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  disabled={!projectId}
+                  onClick={() => projectId && void openPreviewWindow(projectId, projectName)}
+                  aria-label="Open preview in a new window"
+                >
+                  <SquareArrowOutUpRight className="size-3.5" />
+                </Button>
+              </Tooltip>
+            )}
             {isFs && (
               <Tooltip label="Hide toolbar">
                 <Button

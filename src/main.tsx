@@ -8,6 +8,7 @@ import { IndexKeeper } from "@/components/editor/IndexKeeper";
 import { RenameDialog } from "@/components/layout/RenameDialog";
 import { AddCitationDialog } from "@/components/layout/AddCitationDialog";
 import { UpdateWindow } from "@/components/layout/UpdateWindow";
+import { PreviewWindow } from "@/components/preview/PreviewWindow";
 import { ThemeProvider } from "@/lib/theme";
 import { Toaster } from "@/components/ui/toaster";
 import { appendAppLog } from "@/lib/tauri";
@@ -27,8 +28,9 @@ window.addEventListener("error", (e) => {
 
 // A dedicated, frameless window (opened by the updater) renders only the update
 // UI via `?view=update`, in its own JS context.
-const isUpdateWindow =
-  new URLSearchParams(window.location.search).get("view") === "update";
+const viewParam = new URLSearchParams(window.location.search).get("view");
+const isUpdateWindow = viewParam === "update";
+const isPreviewWindow = viewParam === "preview";
 
 // The update window is transparent so its rounded card defines the window
 // shape; clear the opaque page background the main app sets.
@@ -44,6 +46,11 @@ createRoot(document.getElementById("root")!).render(
       {isUpdateWindow ? (
         <ThemeProvider>
           <UpdateWindow />
+        </ThemeProvider>
+      ) : isPreviewWindow ? (
+        <ThemeProvider>
+          <PreviewWindow />
+          <Toaster />
         </ThemeProvider>
       ) : (
         <>

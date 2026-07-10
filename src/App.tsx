@@ -184,6 +184,8 @@ export default function App() {
       s.setRailTab("files");
       if (s.openInTree && !s.showTree) s.toggleTree();
       else if (!s.openInTree && s.showTree) s.toggleTree();
+      // Point an open detached preview window at the new project.
+      void import("@/lib/preview-window").then((m) => m.retargetPreviewWindow(projectId));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);

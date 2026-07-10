@@ -89,6 +89,8 @@ export const useCompileStore = create<CompileState>((set, get) => ({
         lastCompiledAt: Date.now(),
         compileTimeMs: result.compile_time_ms ?? 0,
       });
+      // Tell a detached preview window (if open) to reload the fresh PDF.
+      void import("@/lib/preview-window").then((m) => m.refreshPreviewWindow());
       return result;
     } catch (e) {
       if (!stale()) set({ status: "error", log: `Compile failed: ${String(e)}` });
