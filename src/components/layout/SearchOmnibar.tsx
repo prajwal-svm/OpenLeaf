@@ -9,6 +9,7 @@ import {
   Plus,
   Search,
   Settings,
+  Sparkles,
   Sun,
 } from "lucide-react";
 import { useSettingsStore } from "@/store/settings";
@@ -131,6 +132,18 @@ export function SearchOmnibar() {
         kw: "theme dark light appearance mode",
         icon: theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />,
         run: toggleTheme,
+      },
+      {
+        id: "figure",
+        label: "Generate a figure with AI",
+        kw: "figure diagram draw tikz plot chart illustration",
+        icon: <Sparkles className="size-4" />,
+        run: () => {
+          const s = useSettingsStore.getState();
+          s.setRailTab("ai");
+          if (!s.showTree) s.toggleTree();
+          s.setFigureModeOpen(true);
+        },
       },
       {
         id: "settings",

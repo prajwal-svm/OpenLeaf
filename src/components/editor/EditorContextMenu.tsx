@@ -13,6 +13,7 @@ import {
 import { getEditorView, insertAtCursor, wrapSelection } from "./cm/controller";
 import { openInlineEdit } from "./cm/inline-ai/openSession";
 import { goToDefinition, findReferences, startRename } from "@/lib/index/nav";
+import { useSettingsStore } from "@/store/settings";
 
 interface EditorContextMenuProps {
   children: ReactNode;
@@ -33,6 +34,22 @@ export function EditorContextMenu({ children }: EditorContextMenuProps) {
         >
           <Sparkles className="mr-2 size-4" /> Ask AI…
           <span className="ml-auto text-xs text-muted-foreground">⌘L</span>
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => {
+            const view = getEditorView();
+            const sel = view?.state.selection.main;
+            const text = sel && !sel.empty ? view!.state.sliceDoc(sel.from, sel.to) : "";
+            const s = useSettingsStore.getState();
+            s.setRailTab("ai");
+            if (!s.showTree) s.toggleTree();
+            s.setFigureModeOpen(true);
+            window.dispatchEvent(
+              new CustomEvent("openleaf:figure-from-selection", { detail: { text } }),
+            );
+          }}
+        >
+          <Image className="mr-2 size-4" /> Generate figure from selection
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
