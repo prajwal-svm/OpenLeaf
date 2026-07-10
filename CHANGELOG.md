@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Draw with AI (figures)** - turn a prompt or a selected paragraph into a
+  publication-quality figure. The assistant drafts TikZ, compiles just the figure
+  in isolation, and (on vision-capable models) looks at the rendered result to fix
+  overlaps and spacing before inserting editable LaTeX at your cursor plus a
+  `figures/<name>.png` copy. Text-only models refine from the compile log while you
+  steer with the live preview, and a no-AI Figure Playground lets anyone compile and
+  insert a figure by hand, offline. Open it from the spark icon in the AI panel, the
+  omnibar ("Generate a figure with AI"), or right-click "Generate figure from
+  selection".
 - **Command omnibar** - the search bar (Cmd/Ctrl+Shift+F, from anywhere) is now a
   Raycast-style palette: it finds your projects first, searches inside documents,
   and runs commands. Slash commands scope it: `/create` opens the template

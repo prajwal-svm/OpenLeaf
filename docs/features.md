@@ -152,6 +152,18 @@ A chat assistant that can actually _do_ things to your project:
 
 Bring any provider: OpenAI, Anthropic, Groq, OpenRouter, DeepSeek, Mistral, xAI, Z.AI, or run locally with Ollama. See [AI Assistant](ai-assistant.md).
 
+## Draw with AI (figures)
+
+Turn a description (or a selected paragraph) into a publication-quality figure. Toggle figure mode in the AI panel (the spark icon), pick "Generate a figure with AI" from the omnibar, or right-click a paragraph and choose "Generate figure from selection". The assistant drafts TikZ, compiles just the figure in isolation (so your main document is never disturbed), and inserts editable LaTeX at your cursor when you accept, along with a `figures/<name>.png` copy.
+
+It works at three levels, so nobody is locked out:
+
+- **No AI needed.** A manual Figure Playground: write or paste TikZ, compile to a live preview, and insert it. Works offline with no API key.
+- **Text-only models.** The assistant generates and refines from the compile errors and log, while you steer using the visible preview.
+- **Vision models.** After each compile the assistant looks at the rendered figure and fixes overlaps, spacing, and alignment on its own before you accept.
+
+You can also drop a hand-drawn sketch into the project and ask the assistant to reproduce it as a clean figure.
+
 ## Export
 
 - PDF, always, ATS-clean, and the full source as a `.zip`.

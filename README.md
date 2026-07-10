@@ -155,6 +155,8 @@ We don't know another LaTeX editor that checks this for you. See [Preflight in t
 
 The assistant can read your files, compile them, look at the resulting PDF, edit the source, and then check that its edit actually worked.
 
+It also draws figures. Describe a diagram (or select a paragraph), and it generates the LaTeX, compiles just the figure in isolation, looks at the rendered result to fix overlaps and spacing, and inserts editable TikZ at your cursor. No AI key? A manual Figure Playground compiles and inserts figures offline.
+
 | | |
 |---|---|
 | Explain a cryptic error | Rewrite a paragraph |
