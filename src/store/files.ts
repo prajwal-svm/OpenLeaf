@@ -30,6 +30,9 @@ interface FileState {
 interface FilesStore {
   projectId: string | null;
   projectName: string;
+  /** Project kind: "" for a normal document project, "image" for a single-figure
+   *  project (hides doc-only tools like Insert diagram). */
+  projectKind: string;
   mainDoc: string;
   tree: FileEntry[];
   files: Record<string, FileState>;
@@ -89,6 +92,7 @@ function cancelPendingAutosave() {
 export const useFilesStore = create<FilesStore>((set, get) => ({
   projectId: null,
   projectName: "",
+  projectKind: "",
   mainDoc: "main.tex",
   tree: [],
   files: {},
@@ -113,6 +117,7 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
       loading: true,
       projectId: id,
       projectName: "",
+      projectKind: "",
       mainDoc: "main.tex",
       tree: [],
       files: {},
@@ -125,7 +130,7 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
       if (seq !== openSeq) return; // a newer openProject superseded this one
       const tree = await listFiles(id);
       if (seq !== openSeq) return;
-      set({ projectName: meta.name, mainDoc: meta.main_doc, tree });
+      set({ projectName: meta.name, projectKind: meta.kind ?? "", mainDoc: meta.main_doc, tree });
       // Preload .bib files so citation autocomplete works.
       const bibs = tree.filter((f) => !f.is_dir && f.path.endsWith(".bib"));
       for (const b of bibs) {

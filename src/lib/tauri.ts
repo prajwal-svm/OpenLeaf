@@ -37,6 +37,7 @@ export interface ProjectMeta {
   main_doc: string;
   engine: string;
   color?: string;
+  kind?: string;
 }
 
 export interface ProjectInfo {

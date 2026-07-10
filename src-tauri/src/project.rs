@@ -30,6 +30,10 @@ pub struct ProjectMeta {
     /// default. Stored on disk so a project's color survives across machines.
     #[serde(default)]
     pub color: String,
+    /// "" / "document" for a normal project, "image" for a single-figure project
+    /// (standalone) that previews the compiled image and hides doc-only tools.
+    #[serde(default)]
+    pub kind: String,
     #[serde(default)]
     pub exports: Vec<ExportRecord>,
 }
@@ -132,6 +136,7 @@ pub fn read_meta(project_id: &str) -> Result<ProjectMeta, String> {
             main_doc: default_main_doc(),
             engine: default_engine(),
             color: String::new(),
+            kind: String::new(),
             exports: Vec::new(),
         });
     }
@@ -484,6 +489,7 @@ pub fn create_project(name: String) -> Result<String, String> {
             main_doc: default_main_doc(),
             engine: default_engine(),
             color: String::new(),
+            kind: String::new(),
             exports: Vec::new(),
         },
     )?;
@@ -888,6 +894,7 @@ pub fn create_project_from_template(
             main_doc: manifest.main_doc,
             engine: manifest.engine,
             color,
+            kind: manifest.kind.unwrap_or_default(),
             exports: Vec::new(),
         },
     )?;

@@ -149,13 +149,17 @@ export function SearchOmnibar() {
                 s.setFigureModeOpen(true);
               },
             },
-            {
-              id: "diagram",
-              label: "Insert a diagram (manual)",
-              kw: "diagram figure tikz manual composer draw insert paste",
-              icon: <Workflow className="size-4" />,
-              run: () => useSettingsStore.getState().setDiagramComposerOpen(true),
-            },
+            ...(useFilesStore.getState().projectKind === "image"
+              ? []
+              : [
+                  {
+                    id: "diagram",
+                    label: "Insert a diagram (manual)",
+                    kw: "diagram figure tikz manual composer draw insert paste",
+                    icon: <Workflow className="size-4" />,
+                    run: () => useSettingsStore.getState().setDiagramComposerOpen(true),
+                  },
+                ]),
           ]
         : []),
       {

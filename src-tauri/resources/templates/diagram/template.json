@@ -1,0 +1,15 @@
+{
+  "id": "diagram",
+  "name": "Diagram / Figure",
+  "category": "Diagrams & Figures",
+  "description": "A standalone TikZ figure that previews as an image. Draw or write TikZ, compile, and reuse the figure anywhere.",
+  "main_doc": "main.tex",
+  "engine": "xetex",
+  "layout": "single",
+  "pages": "single",
+  "default_color": "#7048e8",
+  "license": { "spdx": "MIT", "author": "OpenLeaf", "url": "https://github.com/prajwal-svm/OpenLeaf" },
+  "requires": { "packages": [], "fonts": [], "engine": "tectonic" },
+  "kind": "image",
+  "order": 5
+}

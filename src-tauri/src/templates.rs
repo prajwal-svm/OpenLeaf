@@ -83,6 +83,10 @@ pub struct TemplateManifest {
     pub requires: TemplateRequires,
     #[serde(default)]
     pub order: i64,
+    /// Project kind: "" / "document" for normal projects, "image" for a
+    /// single-figure project that previews the compiled image (standalone).
+    #[serde(default)]
+    pub kind: Option<String>,
 }
 
 /// The gallery-facing view, sent to the UI by `list_templates`.

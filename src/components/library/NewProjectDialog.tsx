@@ -16,6 +16,7 @@ import {
 // Preferred category order (anything else falls to the end, alphabetically).
 const CATEGORY_ORDER = [
   "Blank",
+  "Diagrams & Figures",
   "CVs & Resumes",
   "Journals & Conferences",
   "Bibliographies",

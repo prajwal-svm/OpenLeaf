@@ -72,6 +72,7 @@ const VIEW_OPTIONS: { mode: ViewMode; label: string; icon: typeof Columns2 }[] =
 export function TopToolbar() {
   const projectName = useFilesStore((s) => s.projectName);
   const projectId = useFilesStore((s) => s.projectId);
+  const projectKind = useFilesStore((s) => s.projectKind);
   const closeProject = useFilesStore((s) => s.closeProject);
   const refreshProjects = useFilesStore((s) => s.refreshProjects);
   const openProject = useFilesStore((s) => s.openProject);
@@ -358,17 +359,19 @@ export function TopToolbar() {
           </Button>
         </Tooltip>
 
-        <Tooltip label="Insert diagram">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => setDiagramComposerOpen(true)}
-            aria-label="Insert diagram"
-          >
-            <ImagePlay className="size-4" />
-          </Button>
-        </Tooltip>
+        {projectKind !== "image" && (
+          <Tooltip label="Insert diagram">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setDiagramComposerOpen(true)}
+              aria-label="Insert diagram"
+            >
+              <ImagePlay className="size-4" />
+            </Button>
+          </Tooltip>
+        )}
 
         <div className="relative">
           <Tooltip label="Export">
