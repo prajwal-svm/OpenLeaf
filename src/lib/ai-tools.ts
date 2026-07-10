@@ -12,7 +12,24 @@ import {
 import { useFilesStore } from "@/store/files";
 import { useCompileStore } from "@/store/compile";
 import { useIndexStore } from "@/store/project-index";
+import { useSettingsStore } from "@/store/settings";
 import { extractPdfText } from "@/lib/pdf-text";
+import {
+  compileIsolated,
+  readIsolatedPdf,
+  readProjectBytes,
+  writeProjectBytes,
+} from "@/lib/tauri";
+import {
+  buildStandaloneDoc,
+  slugifyFigureName,
+  bytesToBase64,
+  setLastFigurePreview,
+  getLastFigurePreview,
+  getFigureInsertTarget,
+} from "@/lib/ai-figure";
+import { pdfPageToPng } from "@/lib/pdf-image";
+import { insertAtCursor, replaceRange } from "@/components/editor/cm/controller";
 
 const pid = () => useFilesStore.getState().projectId;
 const store = () => useFilesStore.getState();
@@ -439,6 +456,214 @@ export function createOpenLeafTools(opts?: { confirm?: ConfirmFn }) {
           unresolvedRefs: [...new Set(index.uses.filter((u) => u.kind === "ref" && !index.definitionFor(u)).map((u) => u.name))],
           unresolvedCites: [...new Set(index.uses.filter((u) => u.kind === "cite" && !index.definitionFor(u)).map((u) => u.name))],
         };
+      },
+    },
+  };
+
+  const wrapped: Record<
+    string,
+    {
+      description: string;
+      inputSchema: ReturnType<typeof jsonSchema>;
+      execute: RawToolDef["execute"];
+    }
+  > = {};
+  for (const [name, def] of Object.entries(tools)) {
+    wrapped[name] = {
+      description: def.description,
+      inputSchema: jsonSchema(def.inputSchema),
+      execute: def.execute,
+    };
+  }
+  return wrapped;
+}
+
+/** Base64 of a PNG data URL, for writing it to disk via write_project_bytes. */
+function pngDataUrlToBase64(dataUrl: string): string {
+  const comma = dataUrl.indexOf(",");
+  return comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+}
+
+/**
+ * The figure-studio toolset: generate a standalone figure, compile it in
+ * isolation, and (on accept) insert editable LaTeX into the document. `onImage`
+ * lets the chat loop attach the rendered figure to the conversation for a
+ * vision model to inspect.
+ */
+export function createFigureTools(opts?: {
+  confirm?: ConfirmFn;
+  onImage?: (dataUrl: string) => void;
+}) {
+  const confirm = opts?.confirm;
+  const onImage = opts?.onImage;
+  const declined = (tool: string) => ({
+    error: "The user declined this change.",
+    declined: true as const,
+    tool,
+  });
+
+  const tools: Record<string, RawToolDef> = {
+    preview_figure: {
+      description:
+        "Compile a figure in isolation and return the outcome. Pass `code` (a TikZ picture or other figure body), plus optional `packages` and `libraries` it needs. Returns { success, errors, log_tail }. Iterate: fix errors and call again until success is true.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          code: {
+            type: "string",
+            description: "The figure body, e.g. a \\begin{tikzpicture}...\\end{tikzpicture}",
+          },
+          packages: {
+            type: "array",
+            items: { type: "string" },
+            description: "Extra LaTeX packages (tikz is always included)",
+          },
+          libraries: {
+            type: "array",
+            items: { type: "string" },
+            description: "TikZ libraries, e.g. arrows.meta, positioning",
+          },
+        },
+        required: ["code"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const { code, packages, libraries } = input as {
+          code: string;
+          packages?: string[];
+          libraries?: string[];
+        };
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        try {
+          const source = buildStandaloneDoc({ code, packages, libraries });
+          const result = await compileIsolated(
+            id,
+            source,
+            useSettingsStore.getState().offline,
+          );
+          let bytes: Uint8Array | null = null;
+          if (result.has_pdf) {
+            bytes = new Uint8Array(await readIsolatedPdf(id));
+            setLastFigurePreview({ pdfBytes: bytes });
+          } else {
+            setLastFigurePreview(null);
+          }
+          // Hand the rendered image to the loop (Tier 2 vision refine).
+          if (bytes && onImage) {
+            try {
+              onImage(await pdfPageToPng(bytes, 1, 2));
+            } catch {
+              /* rendering is best-effort; text refine still works */
+            }
+          }
+          return {
+            success: result.ok,
+            errors: result.errors,
+            has_pdf: result.has_pdf,
+            log_tail: (result.log ?? "").slice(-4000),
+          };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    insert_figure: {
+      description:
+        "Insert the finished figure into the document at the user's cursor (or the selected paragraph it was generated from), and save a PNG copy to figures/. Provide the final `code`, and optionally a `caption` and `label`; set raw=true to insert the bare code without a figure environment.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          code: { type: "string", description: "The final figure body" },
+          caption: { type: "string", description: "Figure caption (omit for none)" },
+          label: { type: "string", description: "Figure label, e.g. fig:transformer" },
+          raw: {
+            type: "boolean",
+            description: "Insert the bare code without a figure environment",
+            default: false,
+          },
+        },
+        required: ["code"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const { code, caption, label, raw } = input as {
+          code: string;
+          caption?: string;
+          label?: string;
+          raw?: boolean;
+        };
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        const latex = raw
+          ? code
+          : `\\begin{figure}[htbp]\n\\centering\n${code}\n` +
+            (caption ? `\\caption{${caption}}\n` : "") +
+            (label ? `\\label{${label}}\n` : "") +
+            `\\end{figure}`;
+        if (
+          confirm &&
+          !(await confirm({
+            tool: "insert_figure",
+            summary: "Insert figure into document",
+          }))
+        ) {
+          return declined("insert_figure");
+        }
+        // Insert at the captured selection range, else at the cursor.
+        const target = getFigureInsertTarget();
+        if (target) replaceRange(target.from, target.to, latex);
+        else insertAtCursor(latex);
+        // Persist a PNG copy into the visible figures/ folder (best-effort).
+        try {
+          const preview = getLastFigurePreview();
+          if (preview) {
+            const png = await pdfPageToPng(preview.pdfBytes, 1, 2);
+            const name = slugifyFigureName(caption || label || "figure");
+            await writeProjectBytes(id, `figures/${name}.png`, pngDataUrlToBase64(png));
+            await store().refreshTree();
+          }
+        } catch {
+          /* saving the raster copy is optional; the LaTeX is already inserted */
+        }
+        return { success: true };
+      },
+    },
+
+    load_image: {
+      description:
+        "Load an image already in the project (e.g. a hand-drawn sketch the user added) so you can look at it and reproduce it as a figure. Pass its project-relative path.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: "Project-relative image path, e.g. sketch.png",
+          },
+        },
+        required: ["path"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const path = input.path as string;
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        try {
+          const bytes = new Uint8Array(await readProjectBytes(id, path));
+          const lower = path.toLowerCase();
+          const mime =
+            lower.endsWith(".jpg") || lower.endsWith(".jpeg")
+              ? "image/jpeg"
+              : lower.endsWith(".gif")
+                ? "image/gif"
+                : "image/png";
+          const b64 = bytesToBase64(bytes);
+          if (onImage) onImage(`data:${mime};base64,${b64}`);
+          return { loaded: true, path };
+        } catch (e) {
+          return { error: String(e) };
+        }
       },
     },
   };

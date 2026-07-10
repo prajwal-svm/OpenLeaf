@@ -28,6 +28,8 @@ vi.mock("@/store/files", () => ({
 }));
 vi.mock("@/store/compile", () => ({ useCompileStore: { getState: () => mocks.compileState } }));
 vi.mock("@/lib/pdf-text", () => ({ extractPdfText: vi.fn() }));
+// pdf-image pulls in pdfjs-dist (needs DOMMatrix), so mock it out of the graph.
+vi.mock("@/lib/pdf-image", () => ({ pdfPageToPng: vi.fn() }));
 
 import { createOpenLeafTools } from "./ai-tools";
 
