@@ -49,8 +49,10 @@ export function DiagramComposer() {
   const [log, setLog] = useState("");
   const [busy, setBusy] = useState(false);
   const dirtyRef = useRef(false);
+  const gutterRef = useRef<HTMLDivElement>(null);
 
   const stem = useMemo(() => safeName(name), [name]);
+  const lineCount = useMemo(() => code.split("\n").length, [code]);
 
   // Close on Escape.
   useEffect(() => {
@@ -188,41 +190,59 @@ export function DiagramComposer() {
               </span>
             )}
           </div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={() => setOpen(false)}
-            className="ml-auto flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            <X className="size-4" />
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" onClick={() => void compile()} disabled={busy}>
+              {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+              Compile
+            </Button>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setOpen(false)}
+              className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
         </div>
 
         {/* Body: code | preview */}
         <div className="grid min-h-0 flex-1 grid-cols-2">
           <div className="flex min-h-0 flex-col border-r">
-            <div className="shrink-0 border-b px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="flex h-[34px] shrink-0 items-center border-b px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               TikZ / LaTeX code
             </div>
-            <textarea
-              value={code}
-              onChange={(e) => {
-                setCode(e.target.value);
-                dirtyRef.current = true;
-              }}
-              spellCheck={false}
-              className="min-h-0 flex-1 resize-none bg-sidebar p-3 font-mono text-xs outline-none"
-            />
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+              {/* Line-number gutter, scroll-synced with the textarea. */}
+              <div
+                ref={gutterRef}
+                aria-hidden
+                className="shrink-0 select-none overflow-hidden py-3 pl-3 pr-2 text-right font-mono text-xs leading-5 text-muted-foreground/50"
+              >
+                {Array.from({ length: lineCount }, (_, i) => (
+                  <div key={i}>{i + 1}</div>
+                ))}
+              </div>
+              <textarea
+                value={code}
+                wrap="off"
+                onChange={(e) => {
+                  setCode(e.target.value);
+                  dirtyRef.current = true;
+                }}
+                onScroll={(e) => {
+                  if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+                }}
+                spellCheck={false}
+                className="min-h-0 flex-1 resize-none whitespace-pre bg-sidebar py-3 pl-2 pr-3 font-mono text-xs leading-5 outline-none"
+              />
+            </div>
           </div>
           <div className="flex min-h-0 flex-col">
-            <div className="flex shrink-0 items-center justify-between border-b px-3 py-1.5">
+            <div className="flex h-[34px] shrink-0 items-center border-b px-3">
               <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Preview
               </span>
-              <Button size="sm" variant="secondary" onClick={() => void compile()} disabled={busy}>
-                {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-                Compile
-              </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-auto bg-sidebar p-3">
               {png ? (
