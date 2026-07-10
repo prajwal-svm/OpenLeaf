@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, Cpu, Download, Loader2, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Cpu, Download, Info, Loader2, Trash2, X } from "lucide-react";
 import { useEngineStore } from "@/store/engine";
 import { LATEX_PACKAGES, type TaggingStatus } from "@/lib/latex-packages";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const TAG_BADGE: Record<TaggingStatus, { label: string; className: string } | null> = {
@@ -28,13 +29,15 @@ export function EngineSection() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
+      <div className="flex items-center gap-1.5">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tagged / accessible export</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The default engine (Tectonic) is fast and offline but cannot produce tagged, Section 508 / PDF-UA PDFs. That
-          needs LuaLaTeX. OpenLeaf uses one you already have, or installs TinyTeX (about 100 MB) on demand. It lives in
-          your home folder and needs no admin rights.
-        </p>
+        <Tooltip
+          wide
+          side="right"
+          label="The default engine (Tectonic) is fast and offline but cannot produce tagged, Section 508 / PDF-UA PDFs. That needs LuaLaTeX. OpenLeaf uses one you already have, or installs TinyTeX (about 100 MB) on demand. It lives in your home folder and needs no admin rights."
+        >
+          <Info className="size-3.5 cursor-help text-muted-foreground/60 hover:text-muted-foreground" />
+        </Tooltip>
       </div>
 
       <div className="rounded-lg border p-3">

@@ -293,6 +293,21 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
     const { projectId } = get();
     if (!projectId) return;
     await apiRenameFile(projectId, from, to);
+    // Follow the moved/renamed path in memory so an open tab, its buffer, the
+    // active file, and the main-doc pointer don't go stale (also handles folder
+    // moves, which carry every descendant path with them).
+    const remap = (p: string) =>
+      p === from ? to : p.startsWith(`${from}/`) ? `${to}${p.slice(from.length)}` : p;
+    set((s) => {
+      const files: Record<string, FileState> = {};
+      for (const [k, v] of Object.entries(s.files)) files[remap(k)] = v;
+      return {
+        files,
+        openTabs: s.openTabs.map(remap),
+        activePath: s.activePath ? remap(s.activePath) : null,
+        mainDoc: remap(s.mainDoc),
+      };
+    });
     await get().refreshTree();
   },
 

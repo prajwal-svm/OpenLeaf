@@ -1536,10 +1536,10 @@ function AISection() {
 
 const REPO_URL = "https://github.com/prajwal-svm/OpenLeaf";
 const AUTHOR_URL = "http://prajwal.me";
-const DOCS_URL = `${REPO_URL}/blob/main/docs/getting-started.md`;
+const DOCS_URL = "https://prajwal-svm.github.io/OpenLeaf/";
 const ISSUES_URL = `${REPO_URL}/issues/new`;
 const CHANGELOG_URL = `${REPO_URL}/blob/main/CHANGELOG.md`;
-const LICENSES_URL = `${REPO_URL}/blob/main/THIRD_PARTY_LICENSES.md`;
+const LICENSE_URL = `${REPO_URL}/blob/main/LICENSE`;
 
 function HelpSection() {
   const [version, setVersion] = useState("");
@@ -1592,7 +1592,7 @@ function HelpSection() {
       external: true,
     },
     { icon: ScrollText, label: "What's new", onClick: ext(CHANGELOG_URL), external: true },
-    { icon: Scale, label: "Licenses", onClick: ext(LICENSES_URL), external: true },
+    { icon: Scale, label: "License", onClick: ext(LICENSE_URL), external: true },
   ];
 
   return (

@@ -182,10 +182,6 @@ export function Editor() {
               <EditorToolbar />
             </div>
           )}
-          <div className="flex h-6 shrink-0 items-center gap-1.5 border-b px-3 text-xs text-muted-foreground">
-            <FileText className="size-3.5" />
-            <span className="truncate">{activePath ?? ""}</span>
-          </div>
           {isPdfFile && projectId ? (
             <div className="min-h-0 flex-1 overflow-auto bg-sidebar">
               <PdfFileView projectId={projectId} path={activePath!} />

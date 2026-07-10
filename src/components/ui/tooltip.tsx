@@ -21,12 +21,15 @@ export function Tooltip({
   side = "bottom",
   delay = 300,
   className,
+  wide = false,
 }: {
-  label: string;
+  label: ReactNode;
   children: ReactNode;
   side?: Side;
   delay?: number;
   className?: string;
+  /** Wrap the tip and widen it, for descriptive multi-sentence tooltips. */
+  wide?: boolean;
 }) {
   const [show, setShow] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -90,7 +93,10 @@ export function Tooltip({
             ref={tipRef}
             role="tooltip"
             className={cn(
-              "pointer-events-none fixed z-[200] max-w-[240px] whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-md",
+              "pointer-events-none fixed z-[200] rounded-md border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md",
+              wide
+                ? "max-w-xs whitespace-normal font-normal leading-relaxed"
+                : "max-w-[240px] whitespace-nowrap font-medium",
               !pos && "opacity-0"
             )}
             style={pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 }}

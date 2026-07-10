@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Source tree: folders and drag & drop** - create a file or folder inside a
+  folder (right-click the folder, or select it and use the New buttons), nest
+  folders to any depth, and drag files and folders in and out of folders to
+  reorganize. Moving an open file keeps its tab and unsaved changes.
 - **PDF page navigation** - the preview toolbar now shows the current page and
   total (like "6 of 100"), with previous and next buttons and a jump-to-page
   box, next to the zoom controls, so you can move through long documents without
@@ -95,6 +99,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Precise inverse SyncTeX** - Cmd/Ctrl-clicking a word in the PDF now places
   the cursor on that exact word in the source, instead of the start of the line
   (which often landed on a `\begin`/`\end`).
+- **Editor and settings polish** - removed the redundant filename row under the
+  editor toolbar (the open tab already shows it); in Settings, Help & About the
+  Documentation link opens the docs site and License opens the LICENSE file.
 
 ## [0.2.1]
 
