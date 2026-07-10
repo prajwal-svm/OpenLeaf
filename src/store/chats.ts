@@ -22,6 +22,8 @@ export interface ChatMessage {
   content: string;
   toolCalls?: ToolEntry[];
   attachments?: AttachmentMeta[];
+  /** Streamed chain-of-thought from a reasoning model, shown collapsed. */
+  reasoning?: string;
 }
 
 export interface StoredChat {

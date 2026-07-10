@@ -2,6 +2,7 @@ import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { streamText } from "ai";
 import {
   ArrowUp,
+  Brain,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -216,6 +217,31 @@ const MAX_RETRIES = 4;
 const RETRY_BASE_MS = 800;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Collapsible chain-of-thought from a reasoning model (GLM, DeepSeek R1, ...).
+ *  Only rendered when the provider actually streams reasoning text. Collapsed by
+ *  default; plain text (not markdown) so a long stream stays cheap to render. */
+function ReasoningBlock({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="max-w-[85%] rounded-md border bg-muted/30 text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-muted-foreground hover:bg-accent/50"
+      >
+        <Brain className="size-3.5" />
+        <span>Reasoning</span>
+        <ChevronRight className={cn("ml-auto size-3 transition-transform", open && "rotate-90")} />
+      </button>
+      {open && (
+        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words border-t px-2.5 py-1.5 font-sans text-[11px] leading-relaxed text-muted-foreground">
+          {text}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 /**
  * A single chat message (tool badges + content bubble). Memoized on the message
  * object reference: `updateLast` only replaces the *last* message's reference
@@ -225,6 +251,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const MessageItem = memo(function MessageItem({ msg }: { msg: ChatMessage }) {
   return (
     <div className={cn("flex flex-col gap-1.5", msg.role === "user" && "items-end")}>
+      {msg.reasoning ? <ReasoningBlock text={msg.reasoning} /> : null}
       {msg.toolCalls?.map((tc, j) => (
         <ToolBadge key={j} tc={tc} />
       ))}
@@ -736,13 +763,21 @@ USER_CUSTOM_INSTRUCTIONS`
               updateLast((m) => ({ ...m, content: stepText }));
               break;
 
-            // Reasoning models (GLM, o-series, DeepSeek R1) stream a "thinking"
-            // phase before any text/tool call. Surface it so a long reason step
-            // reads as progress, not a freeze.
-            case "reasoning-delta":
+            // Reasoning models (GLM, DeepSeek R1) stream a "thinking" phase
+            // before any text/tool call. Surface it as progress, and accumulate
+            // the text into a collapsible section on the message.
             case "reasoning-start":
               setThinkingText("Reasoning…");
               break;
+            case "reasoning-delta": {
+              setThinkingText("Reasoning…");
+              const rp = part as any;
+              const chunk = rp.text ?? rp.delta ?? rp.textDelta ?? "";
+              if (chunk) {
+                updateLast((m) => ({ ...m, reasoning: (m.reasoning ?? "") + chunk }));
+              }
+              break;
+            }
 
             case "tool-call": {
               const tc = part as any;
