@@ -62,6 +62,9 @@ export interface ToolApprovalRequest {
    * current file (empty for a new file); `newText` is what would be written.
    */
   diff?: { path: string; oldText: string; newText: string };
+  /** A rendered preview image (data URL) to show in the approval card, e.g. the
+   *  compiled figure that insert_figure is about to place in the document. */
+  image?: string;
 }
 
 /**
@@ -602,11 +605,22 @@ export function createFigureTools(opts?: {
             (caption ? `\\caption{${caption}}\n` : "") +
             (label ? `\\label{${label}}\n` : "") +
             `\\end{figure}`;
+        // Render the compiled figure so the user sees what they are approving.
+        const preview = getLastFigurePreview();
+        let png: string | null = null;
+        if (preview) {
+          try {
+            png = await pdfPageToPng(preview.pdfBytes, 1, 2);
+          } catch {
+            /* preview render is best-effort */
+          }
+        }
         if (
           confirm &&
           !(await confirm({
             tool: "insert_figure",
-            summary: "Insert figure into document",
+            summary: "Insert this figure into the document",
+            ...(png ? { image: png } : {}),
           }))
         ) {
           return declined("insert_figure");
@@ -617,9 +631,7 @@ export function createFigureTools(opts?: {
         else insertAtCursor(latex);
         // Persist a PNG copy into the visible figures/ folder (best-effort).
         try {
-          const preview = getLastFigurePreview();
-          if (preview) {
-            const png = await pdfPageToPng(preview.pdfBytes, 1, 2);
+          if (png) {
             const name = slugifyFigureName(caption || label || "figure");
             await writeProjectBytes(id, `figures/${name}.png`, pngDataUrlToBase64(png));
             await store().refreshTree();

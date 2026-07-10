@@ -34,6 +34,15 @@ export function ToolConfirm({
           </p>
         </div>
       </div>
+      {req.image && (
+        <div className="mt-2 flex justify-center overflow-hidden rounded-md border bg-white p-2">
+          <img
+            src={req.image}
+            alt="Figure preview"
+            className="max-h-64 max-w-full object-contain"
+          />
+        </div>
+      )}
       {req.diff && (
         <div className="mt-2 overflow-hidden rounded-md border bg-background">
           <div className="max-h-72 overflow-auto text-[12px]">
