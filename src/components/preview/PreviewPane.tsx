@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Contrast, FileText, Maximize, Minus, Play, Plus, Save, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Columns2, Contrast, FileText, Maximize, Minus, Play, Plus, RectangleVertical, Save, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
-import { PdfViewer, type PdfViewerHandle } from "@/components/pdf/PdfViewer";
+import { PdfViewer, type PdfViewerHandle, type PdfLayout } from "@/components/pdf/PdfViewer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LogPane } from "@/components/editor/LogPane";
 import { useCompileStore } from "@/store/compile";
@@ -35,6 +35,7 @@ export function PreviewPane() {
   const [page, setPage] = useState(1);
   const [numPages, setNumPages] = useState(0);
   const [pageInput, setPageInput] = useState("1");
+  const [layout, setLayout] = useState<PdfLayout>("single");
   const pdfRef = useRef<PdfViewerHandle>(null);
 
   // Keep the jump box in sync with the page the viewer reports, unless it's being
@@ -151,6 +152,31 @@ export function PreviewPane() {
           <div className="ml-auto flex items-center gap-0.5">
             {numPages > 0 && (
               <>
+                <Tooltip label="Single page view">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn("size-7", layout === "single" && "bg-accent text-foreground")}
+                    onClick={() => setLayout("single")}
+                    aria-label="Single page view"
+                    aria-pressed={layout === "single"}
+                  >
+                    <RectangleVertical className="size-3.5" />
+                  </Button>
+                </Tooltip>
+                <Tooltip label="Two-page view">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn("size-7", layout === "double" && "bg-accent text-foreground")}
+                    onClick={() => setLayout("double")}
+                    aria-label="Two-page view"
+                    aria-pressed={layout === "double"}
+                  >
+                    <Columns2 className="size-3.5" />
+                  </Button>
+                </Tooltip>
+                <div className="mx-1 h-4 w-px bg-border" />
                 <Tooltip label="Previous page">
                   <Button
                     variant="ghost"
@@ -275,6 +301,7 @@ export function PreviewPane() {
                 ref={pdfRef}
                 data={pdfBytes}
                 scale={scale}
+                layout={layout}
                 onInverse={inverseFromClick}
                 onPageChange={(current, total) => {
                   setPage(current);

@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   total (like "6 of 100"), with previous and next buttons and a jump-to-page
   box, next to the zoom controls, so you can move through long documents without
   scrolling.
+- **PDF view layouts** - a view toggle in the preview toolbar switches between
+  single-page and two-page (spread) continuous scroll, like a desktop PDF
+  reader.
 - **Smooth large documents** - the PDF preview is virtualized: it only renders
   the pages near the viewport (with a hard cap, evicting the farthest), so a
   hundreds-of-pages thesis or book scrolls smoothly with bounded memory.

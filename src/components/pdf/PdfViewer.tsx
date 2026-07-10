@@ -23,6 +23,9 @@ interface RenderState {
   tasks: pdfjsLib.RenderTask[];
 }
 
+/** Page arrangement: one column (continuous) or two-up spreads (both scroll). */
+export type PdfLayout = "single" | "double";
+
 interface PdfViewerProps {
   data: Uint8Array | null;
   scale: number;
@@ -31,6 +34,8 @@ interface PdfViewerProps {
   /** Reports the page at the top of the viewport and the total page count, so a
    *  toolbar can show "N of M" and drive prev/next/jump. */
   onPageChange?: (current: number, total: number) => void;
+  /** Continuous single column (default) or two pages side by side. */
+  layout?: PdfLayout;
 }
 
 /** Imperative handle: scroll the viewer to a 1-based page number. */
@@ -39,7 +44,7 @@ export interface PdfViewerHandle {
 }
 
 export const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
-  { data, scale, onInverse, onPageChange },
+  { data, scale, onInverse, onPageChange, layout = "single" },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -272,10 +277,13 @@ export const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function Pd
     for (const p of pages) {
       const wrap = wrapsRef.current.get(p);
       if (!wrap) continue;
-      // Pages are stacked in order: the last one whose top has reached the
-      // viewport top is the page you're reading.
-      if (wrap.getBoundingClientRect().top <= parentTop + 4) current = p;
-      else break;
+      // The first visible page whose bottom is still below the viewport top is
+      // the top-most page on screen. Works for one- and two-column layouts (in a
+      // two-up spread this reports the left page of the pair).
+      if (wrap.getBoundingClientRect().bottom > parentTop + 4) {
+        current = p;
+        break;
+      }
     }
     if (current !== currentPageRef.current) {
       currentPageRef.current = current;
@@ -346,8 +354,10 @@ export const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function Pd
 
       for (let p = 1; p <= doc.numPages; p++) {
         const wrap = document.createElement("div");
+        // Spacing between pages comes from the container's `gap`, not a per-page
+        // margin, so single-column and two-up grids stay evenly spaced.
         wrap.className =
-          "relative mb-4 shadow-md ring-1 ring-black/5 rounded-sm overflow-hidden bg-white";
+          "relative shadow-md ring-1 ring-black/5 rounded-sm overflow-hidden bg-white";
         wrap.dataset.page = String(p);
         wrap.style.width = `${Math.floor(baseDimsRef.current.w * s)}px`;
         wrap.style.height = `${Math.floor(baseDimsRef.current.h * s)}px`;
@@ -483,5 +493,18 @@ export const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function Pd
   }, [data]);
 
   if (!data) return null;
-  return <div ref={containerRef} className="flex flex-col items-center p-4" />;
+  // The page wrappers are appended imperatively; switching the container between
+  // a single column and a two-column grid re-flows them into spreads with no
+  // re-render of the pages. (React only patches this element's className; the
+  // imperative children are outside its vdom and are left untouched.)
+  return (
+    <div
+      ref={containerRef}
+      className={
+        layout === "double"
+          ? "grid grid-cols-[auto_auto] content-start justify-center gap-4 p-4"
+          : "flex flex-col items-center gap-4 p-4"
+      }
+    />
+  );
 });
