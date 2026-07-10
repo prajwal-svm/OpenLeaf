@@ -11,6 +11,7 @@ import {
   useEdgesState,
   useReactFlow,
   MarkerType,
+  ConnectionMode,
   type Node,
   type Edge,
   type Connection,
@@ -90,6 +91,9 @@ function modelEdgeToRf(e: DiagEdge): Edge {
     id: e.id,
     source: e.source,
     target: e.target,
+    // Handles default to bottom -> top so programmatic (starter) edges render.
+    sourceHandle: e.sourceHandle ?? "b",
+    targetHandle: e.targetHandle ?? "t",
     type: routingToType(e.routing),
     label: e.label,
     markerEnd: e.arrow !== "none" ? marker : undefined,
@@ -129,6 +133,8 @@ function rfEdgeToModel(e: Edge): DiagEdge {
     arrow: (d.arrow as DiagEdge["arrow"]) ?? "forward",
     style: (d.style as DiagEdge["style"]) ?? "solid",
     label: (d.label as string | undefined) ?? undefined,
+    sourceHandle: e.sourceHandle ?? undefined,
+    targetHandle: e.targetHandle ?? undefined,
   };
 }
 
@@ -294,6 +300,8 @@ function CanvasInner({
         routing: "straight",
         arrow: "forward",
         style: "solid",
+        sourceHandle: c.sourceHandle ?? undefined,
+        targetHandle: c.targetHandle ?? undefined,
       };
       setEdges((es) => addEdge(modelEdgeToRf(e), es));
     },
@@ -396,9 +404,16 @@ function CanvasInner({
               edges={edges}
               nodeTypes={nodeTypes}
               colorMode="light"
+              connectionMode={ConnectionMode.Loose}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
+              onNodesDelete={(deleted) => {
+                // Remove edges attached to a deleted node so no orphan arrows
+                // survive into the compiled figure.
+                const ids = new Set(deleted.map((n) => n.id));
+                setEdges((es) => es.filter((e) => !ids.has(e.source) && !ids.has(e.target)));
+              }}
               onPaneClick={onPaneClick}
               onSelectionChange={({ nodes: sn, edges: se }) => {
                 setSelNode(sn[0]?.id ?? null);

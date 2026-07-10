@@ -29,6 +29,10 @@ export interface DiagEdge {
   arrow: EdgeArrow;
   style: EdgeStyle;
   label?: string;
+  /** Which side handle each end attaches to on the canvas (t/r/b/l). Editor-only;
+   *  TikZ connects node borders automatically. */
+  sourceHandle?: string;
+  targetHandle?: string;
 }
 
 export interface DiagramModel {
