@@ -65,6 +65,9 @@ interface SettingsState {
   setOffline: (v: boolean) => void;
   paletteOpen: boolean;
   setPaletteOpen: (v: boolean) => void;
+  /** The New Project gallery, openable from anywhere (Library, omnibar, palette). */
+  newProjectOpen: boolean;
+  setNewProjectOpen: (v: boolean) => void;
   wordCountOpen: boolean;
   setWordCountOpen: (v: boolean) => void;
   historyOpen: boolean;
@@ -141,6 +144,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setOffline: (v) => set({ offline: v }),
   paletteOpen: false,
   setPaletteOpen: (v) => set({ paletteOpen: v }),
+  newProjectOpen: false,
+  setNewProjectOpen: (v) => set({ newProjectOpen: v }),
   wordCountOpen: false,
   setWordCountOpen: (v) => set({ wordCountOpen: v }),
   historyOpen: false,

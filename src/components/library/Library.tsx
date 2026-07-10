@@ -5,7 +5,6 @@ import { SettingsMenu } from "@/components/layout/SettingsMenu";
 import { LeafLogo } from "@/components/layout/LeafLogo";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Book, BOOK_COLOR_OPTIONS, DEFAULT_BOOK_COLOR } from "@/components/library/Book";
-import { NewProjectDialog } from "@/components/library/NewProjectDialog";
 import {
   Empty,
   EmptyContent,
@@ -19,7 +18,6 @@ import { useFavoritesStore } from "@/store/favorites";
 import { useProjectColorsStore } from "@/store/project-colors";
 import { logError } from "@/lib/log";
 import { notifyError, toast } from "@/lib/toast";
-import { celebrate } from "@/lib/confetti";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -33,46 +31,25 @@ import { useFilesStore } from "@/store/files";
 import { useSettingsStore } from "@/store/settings";
 import { useTheme } from "@/lib/theme";
 import { cn, isMac } from "@/lib/utils";
-import { listTemplates, deleteProject, duplicateProject, type TemplateInfo } from "@/lib/tauri";
+import { deleteProject, duplicateProject } from "@/lib/tauri";
 
 export function Library() {
   const projects = useFilesStore((s) => s.projects);
   const refreshProjects = useFilesStore((s) => s.refreshProjects);
   const openProject = useFilesStore((s) => s.openProject);
-  const createFromTemplate = useFilesStore((s) => s.createFromTemplate);
   const favs = useFavoritesStore((s) => s.favs);
   const toggleFav = useFavoritesStore((s) => s.toggle);
   const projectColors = useProjectColorsStore((s) => s.colors);
   const setProjectColor = useProjectColorsStore((s) => s.setColor);
   const setSearchOpen = useSettingsStore((s) => s.setSearchOpen);
+  const setNewProjectOpen = useSettingsStore((s) => s.setNewProjectOpen);
   const { theme, toggleTheme } = useTheme();
-  const [templates, setTemplates] = useState<TemplateInfo[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [forkTarget, setForkTarget] = useState<{ id: string; name: string } | null>(null);
   const [forkName, setForkName] = useState("");
 
   useEffect(() => {
     void refreshProjects().catch((e) => void logError("load projects", e));
-    void listTemplates().then(setTemplates).catch((e) => void logError("load templates", e));
   }, [refreshProjects]);
-
-  const create = async (rawName: string, templateId: string, color: string): Promise<boolean> => {
-    const n = rawName.trim() || "Untitled";
-    setCreating(true);
-    try {
-      // The color is persisted to project.json by the backend during creation.
-      await createFromTemplate(n, templateId, color);
-      celebrate();
-      setPickerOpen(false);
-      return true;
-    } catch (e) {
-      notifyError("create project", e, "Couldn't create the project.");
-      return false;
-    } finally {
-      setCreating(false);
-    }
-  };
 
   const submitFork = async () => {
     if (!forkTarget) return;
@@ -119,7 +96,7 @@ export function Library() {
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground hover:text-foreground"
-                  onClick={() => setPickerOpen(true)}
+                  onClick={() => setNewProjectOpen(true)}
                 >
                   <Plus className="size-4" /> New project
                 </Button>
@@ -171,7 +148,7 @@ export function Library() {
               <EmptyContent className="max-w-2xl">
                 <Button
                   className="bg-primary text-white hover:bg-primary"
-                  onClick={() => setPickerOpen(true)}
+                  onClick={() => setNewProjectOpen(true)}
                 >
                   <Plus className="size-4" /> Create your first project
                 </Button>
@@ -245,13 +222,8 @@ export function Library() {
         </div>
       </div>
 
-      <NewProjectDialog
-        open={pickerOpen}
-        templates={templates}
-        busy={creating}
-        onClose={() => setPickerOpen(false)}
-        onCreate={(n, t, c) => { void create(n, t, c); }}
-      />
+      {/* The New Project gallery is mounted globally (GlobalNewProject), so it
+          can also be opened from the omnibar and command palette. */}
       {/* Fork modal */}
       {forkTarget && (
         <div

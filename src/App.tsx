@@ -6,6 +6,7 @@ import { Rail } from "@/components/layout/Rail";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { SearchOmnibar } from "@/components/layout/SearchOmnibar";
+import { GlobalNewProject } from "@/components/library/GlobalNewProject";
 import { SettingsModal } from "@/components/layout/SettingsModal";
 import { Editor } from "@/components/editor/Editor";
 import { PreviewPane } from "@/components/preview/PreviewPane";
@@ -248,6 +249,7 @@ export default function App() {
         <Library />
         <CommandPalette />
         <SearchOmnibar />
+        <GlobalNewProject />
         <SettingsModal />
       </ThemeProvider>
     );
@@ -295,6 +297,7 @@ export default function App() {
 
         <CommandPalette />
         <SearchOmnibar />
+        <GlobalNewProject />
         <SettingsModal />
         <WordCountModal />
         <HistoryModal />

@@ -5,6 +5,7 @@ import {
   Command as CommandIcon,
   Crosshair,
   Download,
+  FolderPlus,
   Image as ImageIcon,
   Italic,
   List,
@@ -30,6 +31,7 @@ import { cn } from "@/lib/utils";
 export function CommandPalette() {
   const open = useSettingsStore((s) => s.paletteOpen);
   const setPaletteOpen = useSettingsStore((s) => s.setPaletteOpen);
+  const setNewProjectOpen = useSettingsStore((s) => s.setNewProjectOpen);
   const setWordCountOpen = useSettingsStore((s) => s.setWordCountOpen);
   const setHistoryOpen = useSettingsStore((s) => s.setHistoryOpen);
   const spellcheck = useSettingsStore((s) => s.spellcheck);
@@ -78,6 +80,17 @@ export function CommandPalette() {
           <Command.Empty className="py-6 text-center text-sm text-muted-foreground">
             No results found.
           </Command.Empty>
+
+          <Command.Group
+            heading="Project"
+            className="px-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+          >
+            <PaletteItem
+              icon={<FolderPlus className="size-4" />}
+              label="New project…"
+              onSelect={run(() => setNewProjectOpen(true))}
+            />
+          </Command.Group>
 
           <Command.Group
             heading="Compile"
