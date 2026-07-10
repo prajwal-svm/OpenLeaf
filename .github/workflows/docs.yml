@@ -1,13 +1,13 @@
 name: Docs
 
-# Build the Starlight docs site from docs/ + website/ and deploy to GitHub Pages.
+# Build the Starlight docs site from docs/ + docsite/ and deploy to GitHub Pages.
 # Requires Pages to be enabled with source = "GitHub Actions" (Settings -> Pages).
 on:
   push:
     branches: [main]
     paths:
       - "docs/**"
-      - "website/**"
+      - "docsite/**"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -33,17 +33,17 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: website/pnpm-lock.yaml
+          cache-dependency-path: docsite/pnpm-lock.yaml
       - name: Install
-        working-directory: website
+        working-directory: docsite
         run: pnpm install --frozen-lockfile
       - name: Build
-        working-directory: website
+        working-directory: docsite
         run: pnpm build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: website/dist
+          path: docsite/dist
 
   deploy:
     needs: build
