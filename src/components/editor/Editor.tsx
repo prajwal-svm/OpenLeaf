@@ -49,6 +49,43 @@ function PdfFileView({ projectId, path }: { projectId: string; path: string }) {
 }
 
 const TEX_EXTS = [".tex", ".sty", ".cls", ".bib", ".ltx", ".bst"];
+const IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"];
+
+function imageMime(path: string): string {
+  const p = path.toLowerCase();
+  if (p.endsWith(".jpg") || p.endsWith(".jpeg")) return "image/jpeg";
+  if (p.endsWith(".gif")) return "image/gif";
+  if (p.endsWith(".webp")) return "image/webp";
+  if (p.endsWith(".bmp")) return "image/bmp";
+  if (p.endsWith(".svg")) return "image/svg+xml";
+  return "image/png";
+}
+
+/** Render an image file (png/jpg/svg/...) as an actual picture instead of
+ *  loading its bytes into the text editor. Reads base64 and shows a data URL
+ *  (the CSP allows img-src data:). */
+function ImageFileView({ projectId, path }: { projectId: string; path: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSrc(null);
+    setErr(null);
+    readFileBase64(projectId, path)
+      .then((b64) => { if (!cancelled) setSrc(`data:${imageMime(path)};base64,${b64}`); })
+      .catch((e) => { if (!cancelled) setErr(String(e)); });
+    return () => { cancelled = true; };
+  }, [projectId, path]);
+
+  if (err) return <div className="p-6 text-sm text-destructive">Failed to load image: {err}</div>;
+  if (!src) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+  return (
+    <div className="flex h-full items-center justify-center overflow-auto p-4">
+      <img src={src} alt={basename(path)} className="max-h-full max-w-full object-contain" />
+    </div>
+  );
+}
 
 export function Editor() {
   const openTabs = useFilesStore((s) => s.openTabs);
@@ -103,6 +140,8 @@ export function Editor() {
   const hasOpenFile = activePath !== null;
   const isTexFile = activePath != null && TEX_EXTS.some((e) => activePath.endsWith(e));
   const isPdfFile = activePath != null && activePath.toLowerCase().endsWith(".pdf");
+  const isImageFile =
+    activePath != null && IMAGE_EXTS.some((e) => activePath.toLowerCase().endsWith(e));
   const projectId = useFilesStore((s) => s.projectId);
 
   return (
@@ -199,6 +238,10 @@ export function Editor() {
           {isPdfFile && projectId ? (
             <div className="min-h-0 flex-1 overflow-auto bg-sidebar">
               <PdfFileView projectId={projectId} path={activePath!} />
+            </div>
+          ) : isImageFile && projectId ? (
+            <div className="min-h-0 flex-1 overflow-auto bg-sidebar">
+              <ImageFileView projectId={projectId} path={activePath!} />
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-hidden">
