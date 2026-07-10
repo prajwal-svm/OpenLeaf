@@ -12,6 +12,7 @@ export async function pdfPageToPng(
   bytes: Uint8Array,
   page = 1,
   scale = 2,
+  background?: string,
 ): Promise<string> {
   const loadingTask = pdfjsLib.getDocument({ data: bytes.slice() });
   const doc = await loadingTask.promise;
@@ -24,6 +25,13 @@ export async function pdfPageToPng(
     canvas.height = Math.max(1, Math.floor(viewport.height));
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("no 2d context");
+    // Fill a solid background first (for a non-transparent export); pdf.js draws
+    // over it. Omitting `background` keeps the PNG transparent (standalone PDFs
+    // have no page fill).
+    if (background) {
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     await p.render({ canvas, canvasContext: ctx, viewport }).promise;
     p.cleanup();
     return canvas.toDataURL("image/png");
