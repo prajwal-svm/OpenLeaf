@@ -21,32 +21,6 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid } from "@astrojs/starlight/components";
+import Landing from "../../components/Landing.astro";
 
-**OpenLeaf** is a free, open-source desktop app for writing LaTeX documents and resumes. It runs entirely on your machine, so there is no account and no server between you and your files.
-
-<CardGrid stagger>
-  <Card title="Local-first" icon="laptop">
-    Your files stay on your disk. Compile with the bundled Tectonic engine, fully offline.
-  </Card>
-  <Card title="Real Git, built in" icon="git-pull-request">
-    Every project is a Git repository. Commit, diff, and push to GitHub without leaving the app.
-  </Card>
-  <Card title="Bring your own AI" icon="rocket">
-    Optional assistant that reads, edits, and compiles your project. Use your own key, or none.
-  </Card>
-  <Card title="Cross-platform" icon="seti:default">
-    Native builds for macOS, Windows, and Linux, with signed in-app auto-updates.
-  </Card>
-</CardGrid>
-
-## Get going
-
-<CardGrid>
-  <Card title="New here?" icon="open-book">
-    [Getting started](/OpenLeaf/getting-started/) walks you from install to a compiled PDF in a couple of minutes.
-  </Card>
-  <Card title="Everything it does" icon="list-format">
-    Browse the [full feature list](/OpenLeaf/features/), the [AI assistant](/OpenLeaf/ai-assistant/), and [GitHub sync](/OpenLeaf/github-sync/).
-  </Card>
-</CardGrid>
+<Landing />

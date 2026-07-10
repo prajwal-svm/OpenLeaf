@@ -11,9 +11,23 @@ export default defineConfig({
       title: "OpenLeaf",
       description:
         "Free, local-first LaTeX and resume editor for macOS, Windows, and Linux. An offline Overleaf alternative with Git, GitHub sync, SyncTeX, and bring-your-own-key AI.",
-      logo: { src: "./src/assets/leaf.svg", alt: "OpenLeaf" },
+      logo: { src: "./src/assets/icon.png", alt: "OpenLeaf" },
       favicon: "/favicon.png",
-      customCss: ["./src/styles/theme.css"],
+      customCss: ["./src/styles/theme.css", "./src/styles/landing.css"],
+      // Swap Starlight's light/dark/auto <select> for a light/dark toggle button.
+      components: { ThemeSelect: "./src/components/ThemeToggle.astro" },
+      // Inter (body/UI) + Fira Code (code), the Mintlify pairing.
+      head: [
+        { tag: "link", attrs: { rel: "preconnect", href: "https://fonts.googleapis.com" } },
+        { tag: "link", attrs: { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: true } },
+        {
+          tag: "link",
+          attrs: {
+            rel: "stylesheet",
+            href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap",
+          },
+        },
+      ],
       social: [
         { icon: "github", label: "GitHub", href: "https://github.com/prajwal-svm/OpenLeaf" },
       ],
