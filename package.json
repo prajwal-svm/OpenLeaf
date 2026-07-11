@@ -38,6 +38,7 @@
     "@openleaf/ai-core": "workspace:*",
     "@openleaf/diagram": "workspace:*",
     "@openleaf/editor": "workspace:*",
+    "@openleaf/preflight": "workspace:*",
     "@openleaf/preview": "workspace:*",
     "@openleaf/latex": "workspace:*",
     "@radix-ui/react-context-menu": "^2.3.2",

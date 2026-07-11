@@ -1,8 +1,8 @@
 import { create } from "zustand";
-import { runPreflight } from "@/lib/preflight/engine";
-import { extractForPreflight } from "@/lib/preflight/pdf-extract";
-import type { RefsContext } from "@/lib/preflight/refs-rules";
-import type { PreflightReport } from "@/lib/preflight/types";
+import { runPreflight } from "@openleaf/preflight";
+import { extractForPreflight } from "@openleaf/preflight/pdf-extract";
+import type { RefsContext } from "@openleaf/preflight";
+import type { PreflightReport } from "@openleaf/preflight";
 import { parseEntry } from "@/lib/citation/bibtex";
 import { useFilesStore } from "@/store/files";
 import { useCompileStore } from "@/store/compile";

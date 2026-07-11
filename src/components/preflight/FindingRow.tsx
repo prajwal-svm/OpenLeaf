@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { AlertCircle, AlertTriangle, ChevronRight, CornerDownLeft, Info } from "lucide-react";
-import type { Finding, Severity } from "@/lib/preflight/types";
+import type { Finding, Severity } from "@openleaf/preflight";
 import { gotoRange } from "@/components/editor/cm/controller";
 import { cn } from "@/lib/utils";
 

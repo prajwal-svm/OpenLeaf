@@ -71,6 +71,9 @@ importers:
       '@openleaf/latex':
         specifier: workspace:*
         version: link:packages/latex
+      '@openleaf/preflight':
+        specifier: workspace:*
+        version: link:packages/preflight
       '@openleaf/preview':
         specifier: workspace:*
         version: link:packages/preview
@@ -302,6 +305,12 @@ importers:
         version: 19.2.7
 
   packages/latex: {}
+
+  packages/preflight:
+    dependencies:
+      pdfjs-dist:
+        specifier: '*'
+        version: 6.1.200
 
   packages/preview:
     dependencies:

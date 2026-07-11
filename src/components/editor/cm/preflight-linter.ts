@@ -1,5 +1,5 @@
 import { linter, type Diagnostic } from "@codemirror/lint";
-import { runSourceRules } from "@/lib/preflight/source-rules";
+import { runSourceRules } from "@openleaf/preflight";
 
 /**
  * Inline squiggles for the source-level preflight rules (ATS + accessibility),

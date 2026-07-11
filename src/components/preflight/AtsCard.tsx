@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Check, Mail, MapPin, Phone, User, X } from "lucide-react";
-import type { AtsParse } from "@/lib/preflight/ats-parse";
+import type { AtsParse } from "@openleaf/preflight";
 import { cn } from "@/lib/utils";
 
 /**

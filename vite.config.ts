@@ -18,6 +18,7 @@ export default defineConfig(async () => ({
       "@openleaf/ai-core": path.resolve(__dirname, "./packages/ai-core/src"),
       "@openleaf/diagram": path.resolve(__dirname, "./packages/diagram/src"),
       "@openleaf/editor": path.resolve(__dirname, "./packages/editor/src"),
+      "@openleaf/preflight": path.resolve(__dirname, "./packages/preflight/src"),
       "@openleaf/preview": path.resolve(__dirname, "./packages/preview/src"),
     },
   },
