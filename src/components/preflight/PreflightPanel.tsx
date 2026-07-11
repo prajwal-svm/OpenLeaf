@@ -161,7 +161,7 @@ export function PreflightPanel() {
           const isOpen = expanded[c.id];
           const showResults = on && ran[c.id] && !!report;
           return (
-            <div key={c.id} className={cn("rounded-lg border border-sidebar-border", !on && "opacity-70")}>
+            <div key={c.id} className={cn("rounded-lg border border-sidebar-border bg-black/[0.03] dark:bg-background", !on && "opacity-70")}>
               <div className="flex items-center gap-2.5 p-3">
                 <button onClick={() => flip(c.id)} role="checkbox" aria-checked={on} aria-label={`Enable ${c.label}`} className="shrink-0">
                   <span
