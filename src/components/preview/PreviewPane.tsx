@@ -129,17 +129,30 @@ export function PreviewPane() {
 
   const submitSavePdf = async () => {
     if (!projectId || !pdfBytes) return;
-    const raw = saveName.trim() || mainDoc.replace(/\.tex$/i, "") || "document";
-    const name = raw.replace(/\.pdf$/i, "") + ".pdf";
     setSaving(true);
     try {
-      await saveFileBase64(projectId, name, uint8ToBase64(pdfBytes));
-      await refreshTree();
-      setSaveOpen(false);
-      setSaveName("");
-      toast.success("PDF saved to the project.");
+      if (isImage) {
+        // Save the compiled figure as a PNG image into the project.
+        const base = saveName.trim().replace(/\.(png|pdf)$/i, "") || "figure";
+        const name = `${base}.png`;
+        const { pdfPageToPng } = await import("@/lib/pdf-image");
+        const dataUrl = await pdfPageToPng(pdfBytes, 1, 3);
+        await saveFileBase64(projectId, name, dataUrl.slice(dataUrl.indexOf(",") + 1));
+        await refreshTree();
+        setSaveOpen(false);
+        setSaveName("");
+        toast.success("Image saved to the project.");
+      } else {
+        const raw = saveName.trim() || mainDoc.replace(/\.tex$/i, "") || "document";
+        const name = raw.replace(/\.pdf$/i, "") + ".pdf";
+        await saveFileBase64(projectId, name, uint8ToBase64(pdfBytes));
+        await refreshTree();
+        setSaveOpen(false);
+        setSaveName("");
+        toast.success("PDF saved to the project.");
+      }
     } catch (e) {
-      notifyError("save pdf to project", e, "Couldn't save the PDF into the project.");
+      notifyError("save to project", e, "Couldn't save into the project.");
     } finally {
       setSaving(false);
     }
@@ -325,7 +338,14 @@ export function PreviewPane() {
                 className="size-7"
                 disabled={!pdfBytes}
                 onClick={() => {
-                  setSaveName((mainDoc.replace(/\.tex$/i, "") || (isImage ? "figure" : "document")) + ".pdf");
+                  if (isImage) {
+                    const base =
+                      (projectName || "figure").replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") ||
+                      "figure";
+                    setSaveName(`${base}.png`);
+                  } else {
+                    setSaveName((mainDoc.replace(/\.tex$/i, "") || "document") + ".pdf");
+                  }
                   setSaveOpen(true);
                 }}
                 aria-label={isImage ? "Save image to project" : "Save PDF to project"}
