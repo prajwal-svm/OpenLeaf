@@ -99,7 +99,7 @@ function InfoHint({ message }: { message: string }) {
 function ToolBadge({ tc }: { tc: ToolEntry }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <div className="rounded-md border bg-muted/30 text-xs">
+    <div className="rounded-md border bg-muted text-xs">
       <button
         onClick={() => tc.output && setExpanded(!expanded)}
         className={cn("flex w-full items-center gap-2 px-2.5 py-1.5", tc.output && "cursor-pointer hover:bg-accent/50")}
@@ -249,7 +249,7 @@ function ReasoningBlock({
       : "Reasoning";
 
   return (
-    <div className="max-w-[85%] rounded-md border bg-muted/30 text-xs">
+    <div className="max-w-[85%] rounded-md border bg-muted text-xs">
       <button
         type="button"
         onClick={() => setUserToggled(open ? false : true)}
@@ -1319,7 +1319,7 @@ USER_CUSTOM_INSTRUCTIONS`
                     !messages[messages.length - 1]?.reasoningBlocks?.some(
                       (b) => b.ms === undefined,
                     ) && (
-                      <div className="max-w-[85%] rounded-md border bg-muted/30 text-xs">
+                      <div className="max-w-[85%] rounded-md border bg-muted text-xs">
                         <div className="flex w-full items-center gap-2 px-2.5 py-1.5 text-muted-foreground">
                           <Brain className="size-3.5 animate-pulse" />
                           <Shimmer text={thinkingText || "Thinking…"} />
