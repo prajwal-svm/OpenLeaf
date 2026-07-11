@@ -88,7 +88,8 @@ automatable by design) · **—** not yet covered (listed at the bottom).
 | Per-category independent Run | 13 |
 | Reader view, prep-export apply, tagged compile | | — / 🔑 [engine] |
 | AI keyless onboarding (connect buttons -> settings AI) | 20 |
-| AI conversations, tool approvals, figure generation | | ✋ [ai] nondeterministic |
+| AI provider connect (settings UI), real conversation, real tool call | `E2E_AI_TOKEN` | 28 🔑 |
+| AI figure generation, destructive tool approvals | | ✋ [ai] nondeterministic |
 
 ## Known manual-only checks
 OS drag-and-drop into the window; native save/open dialogs (exports); native

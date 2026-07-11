@@ -70,3 +70,5 @@ and fill in values - the Playwright config loads it automatically.
 | `E2E_GITHUB_TOKEN` | Runs the source-control stage/diff/commit flow (connects with the PAT) |
 | `E2E_GIT_PUSH=1` | Runs the push-to-origin test (configure the remote first; delete the remote repo afterwards) |
 | `E2E_SKIP_NETWORK=1` | Skips the font-download test |
+| `E2E_AI_TOKEN` | Runs the real AI chat tests (provider connect, conversation, tool call) |
+| `E2E_AI_PROVIDER` | Provider card name for the AI tests (default `Z.AI`) |
