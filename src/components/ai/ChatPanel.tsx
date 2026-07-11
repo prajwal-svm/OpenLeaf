@@ -219,23 +219,52 @@ const RETRY_BASE_MS = 800;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Collapsible chain-of-thought from a reasoning model (GLM, DeepSeek R1, ...).
- *  Only rendered when the provider actually streams reasoning text. Collapsed by
- *  default; plain text (not markdown) so a long stream stays cheap to render. */
-function ReasoningBlock({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
+ *  While the model is thinking (`active`) the block is auto-expanded and the
+ *  stream scrolls live; when the answer starts it auto-collapses to a
+ *  "Thought for Ns" summary. A manual toggle always wins over the automatic
+ *  behavior. Plain text (not markdown) so a long stream stays cheap. */
+function ReasoningBlock({
+  text,
+  active,
+  durationMs,
+}: {
+  text: string;
+  active?: boolean;
+  durationMs?: number;
+}) {
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const open = userToggled ?? !!active;
+  const scrollRef = useRef<HTMLPreElement | null>(null);
+
+  // Follow the live stream to its tail while thinking.
+  useEffect(() => {
+    if (active && open && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [text, active, open]);
+
+  const label = active
+    ? "Thinking…"
+    : durationMs
+      ? `Thought for ${Math.max(1, Math.round(durationMs / 1000))}s`
+      : "Reasoning";
+
   return (
     <div className="max-w-[85%] rounded-md border bg-muted/30 text-xs">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setUserToggled(open ? false : true)}
         className="flex w-full items-center gap-2 px-2.5 py-1.5 text-muted-foreground hover:bg-accent/50"
       >
-        <Brain className="size-3.5" />
-        <span>Reasoning</span>
+        <Brain className={cn("size-3.5", active && "animate-pulse")} />
+        {active ? <Shimmer text={label} /> : <span>{label}</span>}
         <ChevronRight className={cn("ml-auto size-3 transition-transform", open && "rotate-90")} />
       </button>
       {open && (
-        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words border-t px-2.5 py-1.5 font-sans text-[11px] leading-relaxed text-muted-foreground">
+        <pre
+          ref={scrollRef}
+          className="max-h-56 overflow-auto whitespace-pre-wrap break-words border-t px-2.5 py-1.5 font-sans text-[11px] leading-relaxed text-muted-foreground"
+        >
           {text}
         </pre>
       )}
@@ -249,10 +278,27 @@ function ReasoningBlock({ text }: { text: string }) {
  * each streamed token, so every earlier message skips re-render (and skips
  * re-parsing its markdown) instead of reconciling the whole list per token.
  */
-const MessageItem = memo(function MessageItem({ msg }: { msg: ChatMessage }) {
+const MessageItem = memo(function MessageItem({
+  msg,
+  live,
+}: {
+  msg: ChatMessage;
+  /** True only for the streaming tail message; drives the live reasoning view. */
+  live?: boolean;
+}) {
+  // Reasoning is "active" while this message streams and the answer hasn't
+  // started: the moment content or a tool call arrives, thinking is over.
+  const reasoningActive =
+    !!live && !!msg.reasoning && !msg.content && !(msg.toolCalls && msg.toolCalls.length > 0);
   return (
     <div className={cn("flex flex-col gap-1.5", msg.role === "user" && "items-end")}>
-      {msg.reasoning ? <ReasoningBlock text={msg.reasoning} /> : null}
+      {msg.reasoning ? (
+        <ReasoningBlock
+          text={msg.reasoning}
+          active={reasoningActive}
+          durationMs={msg.reasoningMs}
+        />
+      ) : null}
       {msg.toolCalls?.map((tc, j) => (
         <ToolBadge key={j} tc={tc} />
       ))}
@@ -768,6 +814,15 @@ USER_CUSTOM_INSTRUCTIONS`
         const stepToolResults: { id: string; name: string; output: any }[] = [];
         let errorMsg = "";
         let errorRetryable = true;
+        // Wall-clock of the thinking phase, for the "Thought for Ns" label.
+        let reasoningStartedAt: number | null = null;
+        const endReasoning = () => {
+          if (reasoningStartedAt !== null) {
+            const ms = Date.now() - reasoningStartedAt;
+            reasoningStartedAt = null;
+            updateLast((m) => (m.reasoningMs ? m : { ...m, reasoningMs: ms }));
+          }
+        };
 
         for await (const part of result.fullStream) {
           if (ac.signal.aborted) break;
@@ -776,18 +831,21 @@ USER_CUSTOM_INSTRUCTIONS`
           switch (part.type) {
             case "text-delta":
               setThinkingText(null);
+              endReasoning();
               stepText += (part as any).text || (part as any).textDelta || "";
               updateLast((m) => ({ ...m, content: stepText }));
               break;
 
             // Reasoning models (GLM, DeepSeek R1) stream a "thinking" phase
-            // before any text/tool call. Surface it as progress, and accumulate
-            // the text into a collapsible section on the message.
+            // before any text/tool call. It renders LIVE in the message's
+            // auto-expanded ReasoningBlock; time it for the collapsed label.
             case "reasoning-start":
               setThinkingText("Reasoning…");
+              reasoningStartedAt ??= Date.now();
               break;
             case "reasoning-delta": {
               setThinkingText("Reasoning…");
+              reasoningStartedAt ??= Date.now();
               const rp = part as any;
               const chunk = rp.text ?? rp.delta ?? rp.textDelta ?? "";
               if (chunk) {
@@ -795,9 +853,13 @@ USER_CUSTOM_INSTRUCTIONS`
               }
               break;
             }
+            case "reasoning-end":
+              endReasoning();
+              break;
 
             case "tool-call": {
               const tc = part as any;
+              endReasoning();
               stepToolCalls.push({ id: tc.toolCallId || tc.id || `${tc.toolName}-${Date.now()}`, name: tc.toolName, args: tc.input || tc.args || {} });
               setThinkingText(`Running ${tc.toolName}…`);
               updateLast((m) => ({
@@ -1204,18 +1266,28 @@ USER_CUSTOM_INSTRUCTIONS`
                       Key is scoped to the active chat so instances aren't reused
                       across conversations (which would leak expand/scroll state). */}
                   {messages.map((msg, i) => (
-                    <MessageItem key={`${activeChatId ?? "none"}:${i}`} msg={msg} />
+                    <MessageItem
+                      key={`${activeChatId ?? "none"}:${i}`}
+                      msg={msg}
+                      live={streaming && i === messages.length - 1}
+                    />
                   ))}
                   {/* Live shimmer, kept OUT of the memoized items so the frequent
                       thinkingText updates don't reconcile the whole message list.
-                      Shown for the WHOLE run: reasoning models can think for a
-                      long time before the first token creates an assistant
-                      message, and that window must never look like silence. */}
-                  {streaming && (
-                    <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2">
-                      <Shimmer text={thinkingText || "Thinking…"} />
-                    </div>
-                  )}
+                      Shown for the WHOLE run (reasoning models can be silent for
+                      minutes before the first token), EXCEPT while the tail
+                      message's ReasoningBlock is already streaming the live
+                      chain-of-thought - one indicator at a time. */}
+                  {streaming &&
+                    !(
+                      messages[messages.length - 1]?.reasoning &&
+                      !messages[messages.length - 1]?.content &&
+                      !messages[messages.length - 1]?.toolCalls?.length
+                    ) && (
+                      <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2">
+                        <Shimmer text={thinkingText || "Thinking…"} />
+                      </div>
+                    )}
                   {/* A restored conversation can end on a user message with no
                       reply (the app was closed or the stream was interrupted).
                       Say so instead of leaving a silent dangling message. */}

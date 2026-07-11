@@ -24,6 +24,9 @@ export interface ChatMessage {
   attachments?: AttachmentMeta[];
   /** Streamed chain-of-thought from a reasoning model, shown collapsed. */
   reasoning?: string;
+  /** How long the model reasoned before answering, for the "Thought for Ns"
+   *  label once the block collapses. */
+  reasoningMs?: number;
 }
 
 export interface StoredChat {
