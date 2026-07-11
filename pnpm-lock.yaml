@@ -62,6 +62,9 @@ importers:
       '@openleaf/ai-core':
         specifier: workspace:*
         version: link:packages/ai-core
+      '@openleaf/ai-tools':
+        specifier: workspace:*
+        version: link:packages/ai-tools
       '@openleaf/diagram':
         specifier: workspace:*
         version: link:packages/diagram
@@ -213,6 +216,15 @@ importers:
       '@ai-sdk/openai':
         specifier: '*'
         version: 4.0.7(zod@3.25.76)
+      ai:
+        specifier: '*'
+        version: 7.0.14(zod@3.25.76)
+
+  packages/ai-tools:
+    dependencies:
+      '@openleaf/latex':
+        specifier: workspace:*
+        version: link:../latex
       ai:
         specifier: '*'
         version: 7.0.14(zod@3.25.76)

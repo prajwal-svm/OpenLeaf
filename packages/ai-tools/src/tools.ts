@@ -1,0 +1,761 @@
+import { jsonSchema } from "ai";
+import { buildStandaloneDoc, slugifyFigureName, bytesToBase64 } from "@openleaf/latex";
+
+/** A definition in the project's symbol index (structural view). */
+export interface IndexDefView {
+  kind: string;
+  name: string;
+  level?: number;
+  file?: string;
+  line?: number;
+}
+
+/** A symbol use in the project's symbol index (structural view). */
+export interface IndexUseView {
+  kind: string;
+  name: string;
+  file?: string;
+  target?: string;
+}
+
+/** Read-only view of the app's project index, for the project_map tool. */
+export interface ProjectIndexView {
+  defs: IndexDefView[];
+  uses: IndexUseView[];
+  definitionFor(use: IndexUseView): unknown;
+}
+
+/**
+ * Everything the AI toolsets need from the host app: the project file
+ * services, app-state sync, the compiler, the symbol index, the figure
+ * pipeline, and the document editor. The app builds one adapter over its
+ * Tauri client and stores; this package stays free of them.
+ */
+export interface AiToolsHost {
+  getProjectId(): string | null;
+  // Project file services.
+  readFileContent(projectId: string, path: string): Promise<string>;
+  writeFileContent(projectId: string, path: string, content: string): Promise<void>;
+  createFile(projectId: string, path: string, isDir: boolean): Promise<unknown>;
+  deleteFile(projectId: string, path: string): Promise<unknown>;
+  renameFile(projectId: string, from: string, to: string): Promise<unknown>;
+  setMainDoc(projectId: string, path: string): Promise<{ main_doc: string }>;
+  listFiles(projectId: string): Promise<unknown[]>;
+  searchProject(projectId: string, query: string): Promise<unknown[]>;
+  readProjectBytes(projectId: string, path: string): Promise<ArrayBuffer | ArrayLike<number>>;
+  writeProjectBytes(projectId: string, relPath: string, dataBase64: string): Promise<void>;
+  // Reflect completed tool actions into the app's open-editor state.
+  applyExternalWrite(path: string, content: string): void;
+  applyExternalRename(from: string, to: string): void;
+  applyExternalDelete(path: string): void;
+  refreshTree(): Promise<void>;
+  setMainDocState(mainDoc: string): void;
+  // Compile pipeline.
+  recompile(): Promise<
+    { ok?: boolean; errors?: unknown[]; has_pdf?: boolean; log?: string | null } | null | undefined
+  >;
+  getCompileLog(): string | null;
+  getPdfBytes(): Uint8Array | null;
+  extractPdfText(bytes: Uint8Array): Promise<{ pages: string[]; numPages: number }>;
+  // Symbol index (built lazily by the host when absent).
+  getProjectIndex(): Promise<ProjectIndexView | null>;
+  // Isolated figure compile + rendering.
+  compileIsolated(
+    projectId: string,
+    source: string,
+  ): Promise<{ ok: boolean; errors: unknown[]; has_pdf: boolean; log?: string | null }>;
+  readIsolatedPdf(projectId: string): Promise<ArrayBuffer | ArrayLike<number>>;
+  pdfToPng(bytes: Uint8Array, page: number, scale: number): Promise<string>;
+  // Figure session state (last preview, insert target from a selection).
+  setLastFigurePreview(v: { pdfBytes: Uint8Array } | null): void;
+  getLastFigurePreview(): { pdfBytes: Uint8Array } | null;
+  getFigureInsertTarget(): { from: number; to: number } | null;
+  // Document editor.
+  insertAtCursor(text: string): void;
+  replaceRange(from: number, to: number, text: string): void;
+}
+
+type RawSchema = {
+  type: "object";
+  properties: Record<string, unknown>;
+  required: string[];
+  additionalProperties: boolean;
+};
+
+type RawToolDef = {
+  description: string;
+  inputSchema: RawSchema;
+  execute: (input: Record<string, unknown>) => Promise<unknown>;
+};
+
+/** A request to the user to approve a destructive AI edit before it runs. */
+export interface ToolApprovalRequest {
+  /** The tool being called, e.g. "delete_file". */
+  tool: string;
+  /** One-line summary of what will happen (e.g. `Delete sections/intro.tex`). */
+  summary: string;
+  /** The primary path affected, when there is one. */
+  path?: string;
+  /**
+   * Before/after content for a red/green preview, present when the change
+   * rewrites a file's contents (write_file / replace_in_file). `oldText` is the
+   * current file (empty for a new file); `newText` is what would be written.
+   */
+  diff?: { path: string; oldText: string; newText: string };
+  /** A rendered preview image (data URL) to show in the approval card, e.g. the
+   *  compiled figure that insert_figure is about to place in the document. */
+  image?: string;
+}
+
+/**
+ * Ask the user to approve a destructive edit. Returns true to proceed, false to
+ * decline. When no callback is provided (e.g. a non-interactive context), edits
+ * proceed as before.
+ */
+export type ConfirmFn = (req: ToolApprovalRequest) => Promise<boolean>;
+
+export function createOpenLeafTools(host: AiToolsHost, opts?: { confirm?: ConfirmFn }) {
+  const confirm = opts?.confirm;
+  const {
+    readFileContent,
+    writeFileContent,
+    createFile: apiCreateFile,
+    deleteFile: apiDeleteFile,
+    renameFile: apiRenameFile,
+    setMainDoc: setMainDocCmd,
+    listFiles,
+    searchProject,
+    extractPdfText,
+  } = host;
+  const pid = () => host.getProjectId();
+  const declined = (tool: string) => ({
+    error: "The user declined this change.",
+    declined: true as const,
+    tool,
+  });
+
+  const tools: Record<string, RawToolDef> = {
+    read_file: {
+      description:
+        "Read the full contents of a file in the current project.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Project-relative file path, e.g. 'main.tex' or 'sections/intro.tex'" },
+        },
+        required: ["path"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const path = input.path as string;
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        try {
+          return { path, content: await readFileContent(id, path) };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    write_file: {
+      description:
+        "Write or overwrite a file in the current project. Use for editing LaTeX, adding content, or fixing issues.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Project-relative file path" },
+          content: { type: "string", description: "The full file content to write" },
+        },
+        required: ["path", "content"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const { path, content } = input as { path: string; content: string };
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        if (confirm) {
+          const oldText = await readFileContent(id, path).catch(() => "");
+          if (!(await confirm({
+            tool: "write_file",
+            summary: `Write ${path}`,
+            path,
+            diff: { path, oldText, newText: content },
+          }))) {
+            return declined("write_file");
+          }
+        }
+        try {
+          await writeFileContent(id, path, content);
+          host.applyExternalWrite(path, content);
+          return { success: true, path, bytes: content.length };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    replace_in_file: {
+      description:
+        "Replace occurrences of an exact string in a file. Prefer this over write_file for small, precise fixes (e.g. fixing a single LaTeX command). Set replace_all=true to replace every occurrence. Fails if the find string is not present.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Project-relative file path" },
+          find: { type: "string", description: "Exact string to search for (verbatim, including backslashes)" },
+          replace: { type: "string", description: "String to replace it with" },
+          replace_all: { type: "boolean", description: "Replace every occurrence (default: false - first only)", default: false },
+        },
+        required: ["path", "find", "replace"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const { path, find, replace, replace_all } = input as {
+          path: string; find: string; replace: string; replace_all?: boolean;
+        };
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        try {
+          const original = await readFileContent(id, path);
+          if (!original.includes(find)) {
+            return { error: "find string not found in file", path };
+          }
+          const count = replace_all ? original.split(find).length - 1 : 1;
+          // Both branches replace literally: String.prototype.replace with a
+          // string pattern would interpret `$$`, `$&`, `` $` ``, `$'`, `$1`.. in
+          // the AI-supplied `replace` text and corrupt LaTeX (e.g. `$$` -> `$`).
+          // Splice the first occurrence in by index instead.
+          const idx = original.indexOf(find);
+          const updated = replace_all
+            ? original.split(find).join(replace)
+            : original.slice(0, idx) + replace + original.slice(idx + find.length);
+          // Ask for approval with a concrete before/after diff (nothing has been
+          // written yet; declining leaves the file untouched).
+          if (confirm && !(await confirm({
+            tool: "replace_in_file",
+            summary: `Edit ${path}`,
+            path,
+            diff: { path, oldText: original, newText: updated },
+          }))) {
+            return declined("replace_in_file");
+          }
+          await writeFileContent(id, path, updated);
+          host.applyExternalWrite(path, updated);
+          return { success: true, path, replacements: count };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    create_file: {
+      description: "Create a new file or folder in the current project.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Project-relative path for the new file or folder" },
+          is_dir: { type: "boolean", description: "True to create a folder", default: false },
+        },
+        required: ["path"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const { path, is_dir } = input as { path: string; is_dir?: boolean };
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        const summary = is_dir ? `Create folder ${path}` : `Create file ${path}`;
+        if (confirm && !(await confirm({ tool: "create_file", summary, path }))) {
+          return declined("create_file");
+        }
+        try {
+          await apiCreateFile(id, path, is_dir ?? false);
+          await host.refreshTree();
+          return { success: true, path, is_dir: is_dir ?? false };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    rename_file: {
+      description: "Rename or move a file/folder to a new path.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          from: { type: "string", description: "Current project-relative path" },
+          to: { type: "string", description: "New project-relative path" },
+        },
+        required: ["from", "to"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const { from, to } = input as { from: string; to: string };
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        if (confirm && !(await confirm({ tool: "rename_file", summary: `Rename ${from} → ${to}`, path: from }))) {
+          return declined("rename_file");
+        }
+        try {
+          await apiRenameFile(id, from, to);
+          host.applyExternalRename(from, to);
+          return { success: true, from, to };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    delete_file: {
+      description: "Delete a file or folder from the current project.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Project-relative path of the file/folder to delete" },
+        },
+        required: ["path"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const path = input.path as string;
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        if (confirm && !(await confirm({ tool: "delete_file", summary: `Delete ${path}`, path }))) {
+          return declined("delete_file");
+        }
+        try {
+          await apiDeleteFile(id, path);
+          host.applyExternalDelete(path);
+          return { success: true, path };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    compile: {
+      description:
+        "Compile the current LaTeX project to PDF. Persists the active editor file first, runs the build, and returns the outcome. Always check `success` and `errors`; if errors remain, read them, fix the file, then compile again until success is true.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+      execute: async () => {
+        try {
+          const result = await host.recompile();
+          const log = result?.log ?? "";
+          return {
+            success: result?.ok ?? false,
+            errors: result?.errors ?? [],
+            has_pdf: result?.has_pdf ?? false,
+            log_tail: log.slice(-4000),
+          };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    get_log: {
+      description:
+        "Return the full LaTeX compile log from the last compile. Use this when `compile` reports errors and you need surrounding context to diagnose them.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+      execute: async () => {
+        const log = host.getCompileLog();
+        if (!log) return { error: "No compile log yet. Run compile first." };
+        return { log: log.slice(-20000) };
+      },
+    },
+
+    get_pdf_text: {
+      description:
+        "Extract and return the text content of the last compiled PDF, page by page. Use to verify the rendered output (e.g. confirm a section, name, or link appears correctly).",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+      execute: async () => {
+        const bytes = host.getPdfBytes();
+        if (!bytes) return { error: "No PDF available. Run compile first." };
+        try {
+          const { pages, numPages } = await extractPdfText(bytes);
+          const body = pages
+            .map((t, i) => `--- Page ${i + 1}/${numPages} ---\n${t.slice(0, 2000)}`)
+            .join("\n\n");
+          return { numPages, text: body.slice(0, 20000) };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    set_main_doc: {
+      description: "Set the project's main document (the compile entry point, e.g. main.tex).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Project-relative path of the new main document" },
+        },
+        required: ["path"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const path = input.path as string;
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        try {
+          const meta = await setMainDocCmd(id, path);
+          host.setMainDocState(meta.main_doc);
+          return { success: true, main_doc: meta.main_doc };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    search_project: {
+      description: "Search the CURRENT project's documents for a query string. Returns matching lines with file paths and line numbers.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The text to search for" },
+        },
+        required: ["query"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const query = input.query as string;
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        try {
+          const hits = await searchProject(id, query);
+          return { results: hits.slice(0, 20), total: hits.length };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    list_files: {
+      description: "List all files in the current project tree (read fresh from disk).",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+      execute: async () => {
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        try {
+          const files = await listFiles(id);
+          return { files };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    toggle_theme: {
+      description: "Toggle the app between light and dark mode.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+      execute: async () => {
+        try {
+          window.dispatchEvent(new CustomEvent("localleaf:toggle-theme"));
+          return { success: true };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    project_map: {
+      description:
+        "Get a structural map of the whole project: the section outline, labels, citation keys, macros, theorem and glossary names, the \\input file graph, and any unresolved references or citations. Call this to understand the whole document before making cross-cutting edits.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+      execute: async () => {
+        const index = await host.getProjectIndex();
+        if (!index) return { error: "No project open" };
+        const of = (kind: string) => index.defs.filter((d) => d.kind === kind);
+        return {
+          files: of("file").map((d) => d.name),
+          sections: of("section").map((d) => ({ title: d.name, level: d.level, file: d.file, line: d.line })),
+          labels: of("label").map((d) => d.name),
+          bibKeys: of("bibentry").map((d) => d.name),
+          macros: of("macro").map((d) => d.name),
+          theorems: of("theorem").map((d) => d.name),
+          glossary: of("glossary").map((d) => d.name),
+          inputGraph: index.uses
+            .filter((u) => u.kind === "inputedge")
+            .map((u) => ({ from: u.file, to: u.target })),
+          unresolvedRefs: [...new Set(index.uses.filter((u) => u.kind === "ref" && !index.definitionFor(u)).map((u) => u.name))],
+          unresolvedCites: [...new Set(index.uses.filter((u) => u.kind === "cite" && !index.definitionFor(u)).map((u) => u.name))],
+        };
+      },
+    },
+  };
+
+  const wrapped: Record<
+    string,
+    {
+      description: string;
+      inputSchema: ReturnType<typeof jsonSchema>;
+      execute: RawToolDef["execute"];
+    }
+  > = {};
+  for (const [name, def] of Object.entries(tools)) {
+    wrapped[name] = {
+      description: def.description,
+      inputSchema: jsonSchema(def.inputSchema),
+      execute: def.execute,
+    };
+  }
+  return wrapped;
+}
+
+/** Base64 of a PNG data URL, for writing it to disk via write_project_bytes. */
+function pngDataUrlToBase64(dataUrl: string): string {
+  const comma = dataUrl.indexOf(",");
+  return comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+}
+
+/**
+ * The figure-studio toolset: generate a standalone figure, compile it in
+ * isolation, and (on accept) insert editable LaTeX into the document. `onImage`
+ * lets the chat loop attach the rendered figure to the conversation for a
+ * vision model to inspect.
+ */
+export function createFigureTools(
+  host: AiToolsHost,
+  opts?: {
+    confirm?: ConfirmFn;
+    onImage?: (dataUrl: string) => void;
+  },
+) {
+  const confirm = opts?.confirm;
+  const onImage = opts?.onImage;
+  const {
+    compileIsolated,
+    readIsolatedPdf,
+    readProjectBytes,
+    writeProjectBytes,
+    pdfToPng: pdfPageToPng,
+    setLastFigurePreview,
+    getLastFigurePreview,
+    getFigureInsertTarget,
+    insertAtCursor,
+    replaceRange,
+  } = host;
+  const pid = () => host.getProjectId();
+  const declined = (tool: string) => ({
+    error: "The user declined this change.",
+    declined: true as const,
+    tool,
+  });
+
+  const tools: Record<string, RawToolDef> = {
+    preview_figure: {
+      description:
+        "Compile a figure in isolation and return the outcome. Pass `code` (a TikZ picture or other figure body), plus optional `packages` and `libraries` it needs. Returns { success, errors, log_tail }. Iterate: fix errors and call again until success is true.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          code: {
+            type: "string",
+            description: "The figure body, e.g. a \\begin{tikzpicture}...\\end{tikzpicture}",
+          },
+          packages: {
+            type: "array",
+            items: { type: "string" },
+            description: "Extra LaTeX packages (tikz is always included)",
+          },
+          libraries: {
+            type: "array",
+            items: { type: "string" },
+            description: "TikZ libraries, e.g. arrows.meta, positioning",
+          },
+        },
+        required: ["code"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const { code, packages, libraries } = input as {
+          code: string;
+          packages?: string[];
+          libraries?: string[];
+        };
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        try {
+          const source = buildStandaloneDoc({ code, packages, libraries });
+          const result = await compileIsolated(id, source);
+          let bytes: Uint8Array | null = null;
+          if (result.has_pdf) {
+            bytes = new Uint8Array(await readIsolatedPdf(id));
+            setLastFigurePreview({ pdfBytes: bytes });
+          } else {
+            setLastFigurePreview(null);
+          }
+          // Hand the rendered image to the loop (Tier 2 vision refine).
+          if (bytes && onImage) {
+            try {
+              onImage(await pdfPageToPng(bytes, 1, 2));
+            } catch {
+              /* rendering is best-effort; text refine still works */
+            }
+          }
+          return {
+            success: result.ok,
+            errors: result.errors,
+            has_pdf: result.has_pdf,
+            log_tail: (result.log ?? "").slice(-4000),
+          };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+
+    insert_figure: {
+      description:
+        "Insert the finished figure into the document at the user's cursor (or the selected paragraph it was generated from), and save a PNG copy to figures/. Provide the final `code`, and optionally a `caption` and `label`; set raw=true to insert the bare code without a figure environment.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          code: { type: "string", description: "The final figure body" },
+          caption: { type: "string", description: "Figure caption (omit for none)" },
+          label: { type: "string", description: "Figure label, e.g. fig:transformer" },
+          raw: {
+            type: "boolean",
+            description: "Insert the bare code without a figure environment",
+            default: false,
+          },
+        },
+        required: ["code"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const { code, caption, label, raw } = input as {
+          code: string;
+          caption?: string;
+          label?: string;
+          raw?: boolean;
+        };
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        const latex = raw
+          ? code
+          : `\\begin{figure}[htbp]\n\\centering\n${code}\n` +
+            (caption ? `\\caption{${caption}}\n` : "") +
+            (label ? `\\label{${label}}\n` : "") +
+            `\\end{figure}`;
+        // Render the compiled figure so the user sees what they are approving.
+        const preview = getLastFigurePreview();
+        let png: string | null = null;
+        if (preview) {
+          try {
+            png = await pdfPageToPng(preview.pdfBytes, 1, 2);
+          } catch {
+            /* preview render is best-effort */
+          }
+        }
+        if (
+          confirm &&
+          !(await confirm({
+            tool: "insert_figure",
+            summary: "Insert this figure into the document",
+            ...(png ? { image: png } : {}),
+          }))
+        ) {
+          return declined("insert_figure");
+        }
+        // Insert at the captured selection range, else at the cursor.
+        const target = getFigureInsertTarget();
+        if (target) replaceRange(target.from, target.to, latex);
+        else insertAtCursor(latex);
+        // Persist a PNG copy into the visible figures/ folder (best-effort).
+        try {
+          if (png) {
+            const name = slugifyFigureName(caption || label || "figure");
+            await writeProjectBytes(id, `figures/${name}.png`, pngDataUrlToBase64(png));
+            await host.refreshTree();
+          }
+        } catch {
+          /* saving the raster copy is optional; the LaTeX is already inserted */
+        }
+        return { success: true };
+      },
+    },
+
+    load_image: {
+      description:
+        "Load an image already in the project (e.g. a hand-drawn sketch the user added) so you can look at it and reproduce it as a figure. Pass its project-relative path.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: "Project-relative image path, e.g. sketch.png",
+          },
+        },
+        required: ["path"],
+        additionalProperties: false,
+      },
+      execute: async (input) => {
+        const path = input.path as string;
+        const id = pid();
+        if (!id) return { error: "No project open" };
+        try {
+          const bytes = new Uint8Array(await readProjectBytes(id, path));
+          const lower = path.toLowerCase();
+          const mime =
+            lower.endsWith(".jpg") || lower.endsWith(".jpeg")
+              ? "image/jpeg"
+              : lower.endsWith(".gif")
+                ? "image/gif"
+                : "image/png";
+          const b64 = bytesToBase64(bytes);
+          if (onImage) onImage(`data:${mime};base64,${b64}`);
+          return { loaded: true, path };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      },
+    },
+  };
+
+  const wrapped: Record<
+    string,
+    {
+      description: string;
+      inputSchema: ReturnType<typeof jsonSchema>;
+      execute: RawToolDef["execute"];
+    }
+  > = {};
+  for (const [name, def] of Object.entries(tools)) {
+    wrapped[name] = {
+      description: def.description,
+      inputSchema: jsonSchema(def.inputSchema),
+      execute: def.execute,
+    };
+  }
+  return wrapped;
+}
