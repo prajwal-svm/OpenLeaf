@@ -287,7 +287,7 @@ export function TopToolbar() {
                   setEditingTitle(false);
                 }
               }}
-              className="h-6 w-[180px] rounded border bg-background px-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+              className="h-6 w-[180px] rounded border bg-muted px-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
             />
             <Tooltip label="Save (Enter)">
               <button

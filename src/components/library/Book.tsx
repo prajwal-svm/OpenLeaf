@@ -59,6 +59,7 @@ export function Book({
   onClick,
   starred,
   onStarToggle,
+  preview,
 }: {
   title: string;
   color?: string;
@@ -70,6 +71,7 @@ export function Book({
   onClick?: () => void;
   starred?: boolean;
   onStarToggle?: () => void;
+  preview?: string | null;
 }) {
   const coverColor = color ?? DEFAULT_BOOK_COLOR;
   const ink = textColor ?? (isLight(coverColor) ? "#1f2937" : "#ffffff");
@@ -133,6 +135,12 @@ export function Book({
                 </span>
               )}
             </div>
+
+            {preview && (
+              <div className="absolute inset-0 z-[15] -translate-x-full bg-white transition-transform duration-300 ease-out group-hover:translate-x-0">
+                <img src={preview} alt="" draggable={false} className="size-full object-cover object-top" />
+              </div>
+            )}
 
             {/* favorite star */}
             {onStarToggle && (

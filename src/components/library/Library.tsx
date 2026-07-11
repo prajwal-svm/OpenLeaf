@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, FileText, GitFork, Moon, Palette, Plus, Search, Sun, Trash2, X } from "lucide-react";
+import { Bookmark, Check, FileText, GitFork, Moon, Palette, Plus, Search, Sun, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SettingsMenu } from "@/components/layout/SettingsMenu";
 import { LeafLogo } from "@/components/layout/LeafLogo";
@@ -31,7 +31,10 @@ import { useFilesStore } from "@/store/files";
 import { useSettingsStore } from "@/store/settings";
 import { useTheme } from "@/lib/theme";
 import { cn, isMac } from "@/lib/utils";
-import { deleteProject, duplicateProject } from "@/lib/tauri";
+import { deleteProject, duplicateProject, readCompiledPdf } from "@/lib/tauri";
+import { pdfPageToPng } from "@/lib/pdf-image";
+
+const thumbCache = new Map<string, string | null>();
 
 export function Library() {
   const projects = useFilesStore((s) => s.projects);
@@ -46,6 +49,29 @@ export function Library() {
   const { theme, toggleTheme } = useTheme();
   const [forkTarget, setForkTarget] = useState<{ id: string; name: string } | null>(null);
   const [forkName, setForkName] = useState("");
+  const [onlyFavs, setOnlyFavs] = useState(false);
+  const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
+
+  const loadThumb = (id: string, updatedAt: number) => {
+    const key = `${id}:${updatedAt}`;
+    if (thumbCache.has(key)) {
+      const cached = thumbCache.get(key) ?? null;
+      if (thumbs[id] !== cached) setThumbs((t) => ({ ...t, [id]: cached }));
+      return;
+    }
+    thumbCache.set(key, null);
+    void readCompiledPdf(id)
+      .then((buf) => pdfPageToPng(new Uint8Array(buf), 1, 1.2, "#ffffff"))
+      .then((png) => {
+        thumbCache.set(key, png);
+        setThumbs((t) => ({ ...t, [id]: png }));
+      })
+      .catch(() => {
+        setThumbs((t) => ({ ...t, [id]: null }));
+      });
+  };
+
+  const visibleProjects = onlyFavs ? projects.filter((p) => favs.includes(p.id)) : projects;
 
   useEffect(() => {
     void refreshProjects().catch((e) => void logError("load projects", e));
@@ -113,6 +139,21 @@ export function Library() {
                   <Search className="size-4" />
                 </Button>
               </Tooltip>
+              <Tooltip label={onlyFavs ? "Show all projects" : "Show bookmarked only"}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Show bookmarked only"
+                  aria-pressed={onlyFavs}
+                  className={cn(
+                    "hover:text-foreground",
+                    onlyFavs ? "text-amber-500 hover:text-amber-500" : "text-muted-foreground"
+                  )}
+                  onClick={() => setOnlyFavs((v) => !v)}
+                >
+                  <Bookmark className={cn("size-4", onlyFavs && "fill-current")} />
+                </Button>
+              </Tooltip>
             </>
           )}
           <Tooltip label="Settings">
@@ -157,11 +198,16 @@ export function Library() {
               </EmptyContent>
             </Empty>
           ) : (
+          onlyFavs && visibleProjects.length === 0 ? (
+            <p className="py-16 text-center text-sm text-muted-foreground">
+              No bookmarked projects yet. Hover a book and click its bookmark to add one.
+            </p>
+          ) : (
           <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
-            {projects.map((p) => (
+            {visibleProjects.map((p) => (
               <ContextMenu key={p.id}>
                 <ContextMenuTrigger asChild>
-                  <div className="flex justify-center">
+                  <div className="flex justify-center" onMouseEnter={() => loadThumb(p.id, p.updated_at)}>
                     <Book
                       title={p.name}
                       color={projectColors[p.id] ?? (p.color || DEFAULT_BOOK_COLOR)}
@@ -169,6 +215,7 @@ export function Library() {
                       starred={favs.includes(p.id)}
                       onStarToggle={() => toggleFav(p.id)}
                       onClick={() => void openProject(p.id)}
+                      preview={thumbs[p.id]}
                     />
                   </div>
                 </ContextMenuTrigger>
@@ -220,6 +267,7 @@ export function Library() {
               </ContextMenu>
             ))}
           </div>
+          )
           )}
         </div>
       </div>
