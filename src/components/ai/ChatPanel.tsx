@@ -1207,13 +1207,15 @@ USER_CUSTOM_INSTRUCTIONS`
                     <MessageItem key={`${activeChatId ?? "none"}:${i}`} msg={msg} />
                   ))}
                   {/* Live shimmer, kept OUT of the memoized items so the frequent
-                      thinkingText updates don't reconcile the whole message list. */}
-                  {streaming &&
-                    messages[messages.length - 1]?.role === "assistant" && (
-                      <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2">
-                        <Shimmer text={thinkingText || "Thinking…"} />
-                      </div>
-                    )}
+                      thinkingText updates don't reconcile the whole message list.
+                      Shown for the WHOLE run: reasoning models can think for a
+                      long time before the first token creates an assistant
+                      message, and that window must never look like silence. */}
+                  {streaming && (
+                    <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2">
+                      <Shimmer text={thinkingText || "Thinking…"} />
+                    </div>
+                  )}
                   {/* A restored conversation can end on a user message with no
                       reply (the app was closed or the stream was interrupted).
                       Say so instead of leaving a silent dangling message. */}

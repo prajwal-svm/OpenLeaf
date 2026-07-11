@@ -109,7 +109,10 @@ jobs:
     # E2E_* env vars are absent, so CI runs the ungated ~85 tests.
     name: E2E (real app, macOS)
     runs-on: macos-14
-    timeout-minutes: 90
+    # Hard ceiling well under the job cap: a systemically broken environment
+    # (e.g. the webview failing to start) must fail fast, not burn billed
+    # macOS minutes timing out 118 tests one by one.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -158,7 +161,9 @@ jobs:
         run: pnpm exec playwright install chromium
 
       - name: Run the e2e suite
-        run: ./scripts/e2e.sh
+        # --max-failures stops a systemically broken run early;
+        # --global-timeout bounds the whole suite to ~40 minutes.
+        run: ./scripts/e2e.sh --max-failures=10 --global-timeout=2400000
 
       - name: Upload failure artifacts
         if: failure()
