@@ -236,7 +236,6 @@ function ReasoningBlock({
   const open = userToggled ?? !!active;
   const scrollRef = useRef<HTMLPreElement | null>(null);
 
-  // Follow the live stream to its tail while thinking.
   useEffect(() => {
     if (active && open && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -286,8 +285,6 @@ const MessageItem = memo(function MessageItem({
   /** True only for the streaming tail message; drives the live reasoning view. */
   live?: boolean;
 }) {
-  // Reasoning is "active" while this message streams and the answer hasn't
-  // started: the moment content or a tool call arrives, thinking is over.
   const reasoningActive =
     !!live && !!msg.reasoning && !msg.content && !(msg.toolCalls && msg.toolCalls.length > 0);
   return (
@@ -1284,8 +1281,6 @@ USER_CUSTOM_INSTRUCTIONS`
                       !messages[messages.length - 1]?.content &&
                       !messages[messages.length - 1]?.toolCalls?.length
                     ) && (
-                      // Same card shape as ReasoningBlock so the transient
-                      // status and the reasoning view read as one family.
                       <div className="max-w-[85%] rounded-md border bg-muted/30 text-xs">
                         <div className="flex w-full items-center gap-2 px-2.5 py-1.5 text-muted-foreground">
                           <Brain className="size-3.5 animate-pulse" />
@@ -1293,9 +1288,6 @@ USER_CUSTOM_INSTRUCTIONS`
                         </div>
                       </div>
                     )}
-                  {/* A restored conversation can end on a user message with no
-                      reply (the app was closed or the stream was interrupted).
-                      Say so instead of leaving a silent dangling message. */}
                   {!streaming &&
                     messages[messages.length - 1]?.role === "user" && (
                       <div className="max-w-[85%] rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">

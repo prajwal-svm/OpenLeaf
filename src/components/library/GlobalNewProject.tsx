@@ -32,8 +32,6 @@ export function GlobalNewProject() {
     try {
       // Creation stages the template (and any fonts) and opens the project.
       await createFromTemplate(rawName.trim() || "Untitled", templateId, color);
-      // Confetti is reserved for the future first-ever-project tour moment;
-      // firing it on every creation cheapens it (see lib/confetti.ts).
       setOpen(false);
     } catch (e) {
       notifyError("create project", e, "Couldn't create the project.");
