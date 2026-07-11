@@ -1284,8 +1284,13 @@ USER_CUSTOM_INSTRUCTIONS`
                       !messages[messages.length - 1]?.content &&
                       !messages[messages.length - 1]?.toolCalls?.length
                     ) && (
-                      <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2">
-                        <Shimmer text={thinkingText || "Thinking…"} />
+                      // Same card shape as ReasoningBlock so the transient
+                      // status and the reasoning view read as one family.
+                      <div className="max-w-[85%] rounded-md border bg-muted/30 text-xs">
+                        <div className="flex w-full items-center gap-2 px-2.5 py-1.5 text-muted-foreground">
+                          <Brain className="size-3.5 animate-pulse" />
+                          <Shimmer text={thinkingText || "Thinking…"} />
+                        </div>
                       </div>
                     )}
                   {/* A restored conversation can end on a user message with no
