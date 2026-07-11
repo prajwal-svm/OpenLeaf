@@ -214,6 +214,22 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [recompile]);
 
+  // Compile once when a project opens into a layout that shows the PDF pane,
+  // so the user lands on a rendered preview instead of the placeholder. Keyed
+  // on the tree, not projectId: projectId is set before the files (and the
+  // main doc) are loaded, and compiling then would race the open.
+  const tree = useFilesStore((s) => s.tree);
+  const openCompiledRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!projectId || tree.length === 0) return;
+    if (openCompiledRef.current === projectId) return;
+    const view = useSettingsStore.getState().viewMode;
+    if (view !== "split" && view !== "pdf") return;
+    openCompiledRef.current = projectId;
+    if (useCompileStore.getState().status === "compiling") return;
+    void recompile();
+  }, [projectId, tree, recompile]);
+
   // Auto-compile: debounced on real edits. `activeContent` also changes when you
   // merely switch tabs or open a project, so skip those (they aren't edits) by
   // only compiling when the active file is unchanged from the previous render.
