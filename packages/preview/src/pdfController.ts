@@ -59,7 +59,6 @@ export function gotoRect(rect: SynctexRect) {
 
   wrap.style.position = "relative";
 
-  // Remove any previous highlight.
   wrap.querySelector(".ll-synctex-hl")?.remove();
 
   const hl = document.createElement("div");

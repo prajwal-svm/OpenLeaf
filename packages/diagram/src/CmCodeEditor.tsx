@@ -46,7 +46,6 @@ export const CmCodeEditor = forwardRef<
     // echo it back out as a user edit.
     const suppressRef = useRef(false);
 
-    // Create the editor once.
     useEffect(() => {
       if (!hostRef.current) return;
       const state = EditorState.create({

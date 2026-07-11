@@ -166,7 +166,6 @@ export function NewProjectDialog({
   });
   const nameRef = useRef<HTMLInputElement>(null);
 
-  // Reset the wizard whenever it opens.
   useEffect(() => {
     if (open) {
       setStep(1);

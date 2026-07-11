@@ -90,7 +90,6 @@ export function CodeMirrorEditor({
   const { vim: vimEnabled, spellcheck, harper } = host.useSettings();
   const lintDeps = host.useLintRefreshDeps();
 
-  // Create the editor once.
   useEffect(() => {
     if (!hostRef.current) return;
     const initialPath = host.getActivePath();

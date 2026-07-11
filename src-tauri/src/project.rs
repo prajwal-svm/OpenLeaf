@@ -477,7 +477,6 @@ pub fn list_projects() -> Result<Vec<ProjectInfo>, String> {
 #[tauri::command]
 pub fn create_project(name: String) -> Result<String, String> {
     let root = paths::projects_root()?;
-    // unique id: a random meaningful hyphenated slug
     let id = unique_random_slug(&root)?;
     let dir = root.join(&id);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -715,7 +714,6 @@ pub async fn export_document(
         let root = paths::project_dir(&project_id)?;
         // Validate `main_doc` stays inside the project before handing it to pandoc.
         resolve(&project_id, &main_doc)?;
-        // Find pandoc (PATH or a common install location).
         let pandoc = find_pandoc().ok_or_else(|| {
             "pandoc is not installed. Install pandoc to export documents.".to_string()
         })?;
@@ -1180,7 +1178,6 @@ pub async fn duplicate_project(project_id: String, new_name: String) -> Result<S
         let new_id = unique_random_slug(&root)?;
         let dst = root.join(&new_id);
         copy_dir_recursive(&src, &dst, 0)?;
-        // Update the project name in the copy.
         if let Ok(mut meta) = read_meta(&new_id) {
             meta.name = new_name;
             let _ = write_meta(&new_id, &meta);
@@ -1222,7 +1219,6 @@ fn copy_dir_recursive(src: &Path, dst: &Path, depth: usize) -> Result<(), String
 #[tauri::command]
 pub fn clear_build_cache(project_id: String) -> Result<(), String> {
     let build = paths::build_dir(&project_id)?;
-    // Remove everything inside build except the entry wrapper.
     if let Ok(entries) = std::fs::read_dir(&build) {
         for entry in entries.flatten() {
             let _ = std::fs::remove_file(entry.path());

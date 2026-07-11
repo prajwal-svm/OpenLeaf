@@ -264,7 +264,6 @@ function CanvasInner({
     [setNodes],
   );
 
-  // Pending placement carries the palette entry's shape + optional seed label.
   const pendingRef = useRef<{ shape: NodeShape; seed?: string } | null>(null);
   pendingRef.current = pending;
 
@@ -331,7 +330,6 @@ function CanvasInner({
     [selEdge, setEdges],
   );
 
-  // Inline label editing API for the shape nodes.
   const editApi = useMemo(
     () => ({
       editingId,

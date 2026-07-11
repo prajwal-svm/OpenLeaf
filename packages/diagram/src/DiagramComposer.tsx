@@ -118,7 +118,6 @@ export function DiagramComposer({
     codeTimerRef.current = setTimeout(() => setCode(modelToTikz(m)), 200);
   }, []);
 
-  // Close on Escape (unless focus is in an input/textarea/canvas field).
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -161,7 +160,6 @@ export function DiagramComposer({
     }
   }, [projectId, busy, code, model, mode, hasDrawing, scale, background, host, toast]);
 
-  // Warn before overwriting an existing figures/<stem>.* artifact.
   const confirmOverwrite = useCallback(
     async (paths: string[]): Promise<boolean> => {
       if (!projectId) return false;

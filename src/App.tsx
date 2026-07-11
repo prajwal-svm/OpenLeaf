@@ -116,7 +116,6 @@ export default function App() {
   const editorFontFamily = useSettingsStore((s) => s.editorFontFamily);
   const accentColor = useSettingsStore((s) => s.accentColor);
 
-  // On startup: populate the library. The user picks a project from there.
   useEffect(() => {
     void refreshProjects();
     void useGithubStore.getState().refresh();

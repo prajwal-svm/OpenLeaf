@@ -15,7 +15,6 @@ export function celebrate(): void {
     colors,
     scalar: 1,
   });
-  // a second smaller burst from the sides for a fuller effect
   setTimeout(() => {
     confetti({ particleCount: 60, angle: 60, spread: 70, origin: { x: 0, y: 0.5 }, colors });
     confetti({ particleCount: 60, angle: 120, spread: 70, origin: { x: 1, y: 0.5 }, colors });

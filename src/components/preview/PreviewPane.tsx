@@ -132,7 +132,6 @@ export function PreviewPane() {
     setSaving(true);
     try {
       if (isImage) {
-        // Save the compiled figure as a PNG image into the project.
         const base = saveName.trim().replace(/\.(png|pdf)$/i, "") || "figure";
         const name = `${base}.png`;
         const { pdfPageToPng } = await import("@/lib/pdf-image");

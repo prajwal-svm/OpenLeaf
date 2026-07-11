@@ -549,7 +549,6 @@ export function ChatPanel() {
     return () => window.removeEventListener("openleaf:ai-config-changed", load);
   }, []);
 
-  // Detect installed Ollama models whenever Ollama is configured.
   useEffect(() => {
     const host = keysMap.ollama;
     if (!host) {
@@ -638,7 +637,6 @@ export function ChatPanel() {
     [streaming, setActiveChat]
   );
 
-  // Start a brand-new conversation.
   const newChat = useCallback(() => {
     if (streaming) return;
     setActiveChat(null);
@@ -671,7 +669,6 @@ export function ChatPanel() {
     const el = scrollRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    // Auto-scroll only while the user is essentially at the bottom.
     nearBottomRef.current = distanceFromBottom < 100;
     const longEnough = el.scrollHeight > el.clientHeight * 2;
     setShowScrollDown(longEnough && distanceFromBottom > 80);
@@ -701,7 +698,6 @@ export function ChatPanel() {
       setFigureInsertTarget(sel && !sel.empty ? { from: sel.from, to: sel.to } : null);
     }
 
-    // Fresh abort controller for this run (Stop button / project switch / unmount).
     const ac = new AbortController();
     abortRef.current = ac;
 
@@ -808,8 +804,6 @@ USER_CUSTOM_INSTRUCTIONS`
         : ""
     }`;
 
-    // Figure mode swaps in the figure studio prompt (still honoring the user's
-    // custom style preferences).
     const figure = figureMode;
     const effectiveSystem = figure
       ? FIGURE_SYSTEM_PROMPT +
@@ -818,8 +812,7 @@ USER_CUSTOM_INSTRUCTIONS`
           : "")
       : systemPrompt;
 
-    // Build conversation history from current messages + new user msg.
-    // Using a plain array that grows as steps complete.
+    // Conversation history: a plain array that grows as steps complete.
     type Msg = { role: string; content: string; tool_calls?: any[]; tool_call_id?: string; name?: string };
     const apiMessages: Msg[] = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
     // Attach files/images to the final user message as multimodal content parts
@@ -1002,7 +995,6 @@ USER_CUSTOM_INSTRUCTIONS`
         }
 
         const modelInstance = buildAiModel(provider, model, apiKey);
-        // The toolset for this chat mode comes from the contribution registry.
         const toolset = registry.aiToolsets.find((t) => t.mode === (figure ? "figure" : "chat"));
         const tools = toolset
           ? toolset.create({ confirm, onImage: (d: string) => pendingImagesRef.current.push(d) })
@@ -1133,7 +1125,6 @@ USER_CUSTOM_INSTRUCTIONS`
     }
   }, [messages, streaming, apiKey, provider, model, projectId, projectName, currentHead, figureMode, projectKind]);
 
-  // Stop the current AI run (used by the Stop button).
   const stop = useCallback(() => {
     abortRef.current?.abort();
   }, []);

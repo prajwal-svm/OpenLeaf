@@ -196,7 +196,6 @@ export function SettingsModal() {
   const [confirmReset, setConfirmReset] = useState(false);
   const settingsInitialSection = useSettingsStore((s) => s.settingsInitialSection);
 
-  // Close Settings and pop the full keyboard-shortcuts reference on top.
   const openHotkeys = () => {
     setOpen(false);
     setHotkeysOpen(true);
@@ -800,7 +799,6 @@ function GitHubSection({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // Device-flow state.
   const [flow, setFlow] = useState<DeviceCode | null>(null);
   const [flowError, setFlowError] = useState<string | null>(null);
 

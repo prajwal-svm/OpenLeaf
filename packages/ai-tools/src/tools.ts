@@ -229,8 +229,7 @@ export function createOpenLeafTools(host: AiToolsHost, opts?: { confirm?: Confir
           const updated = replace_all
             ? original.split(find).join(replace)
             : original.slice(0, idx) + replace + original.slice(idx + find.length);
-          // Ask for approval with a concrete before/after diff (nothing has been
-          // written yet; declining leaves the file untouched).
+          // Nothing has been written yet; declining leaves the file untouched.
           if (confirm && !(await confirm({
             tool: "replace_in_file",
             summary: `Edit ${path}`,
@@ -687,11 +686,9 @@ export function createFigureTools(
         ) {
           return declined("insert_figure");
         }
-        // Insert at the captured selection range, else at the cursor.
         const target = getFigureInsertTarget();
         if (target) replaceRange(target.from, target.to, latex);
         else insertAtCursor(latex);
-        // Persist a PNG copy into the visible figures/ folder (best-effort).
         try {
           if (png) {
             const name = slugifyFigureName(caption || label || "figure");

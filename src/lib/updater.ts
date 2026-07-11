@@ -69,7 +69,6 @@ export async function installUpdate(
         break;
     }
   });
-  // Restart into the freshly installed version.
   await relaunch();
 }
 
