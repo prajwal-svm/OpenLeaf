@@ -6,11 +6,15 @@ What you need to work on OpenLeaf. The app is a [Tauri 2](https://tauri.app) pro
 
 ```
 localeaf/
-├── src/                    React frontend
-│   ├── components/         ui (shadcn-style), layout, editor, pdf, library, ai
+├── src/                    React app shell (stores, Tauri client, UI kit, port adapters)
+│   ├── components/         ui (shadcn-style), layout, editor glue, preview panes, ai
+│   ├── contributions/      registers rail tabs / commands / AI toolsets into the registry
 │   ├── features/           compile, synctex, export
-│   ├── lib/                tauri wrappers, ai-providers, github, spellcheck, utils
+│   ├── lib/                tauri wrappers, github, spellcheck, utils, package shims
 │   └── store/              zustand stores
+├── packages/               @openleaf/* engine packages (consumed as TS source)
+│   ├── latex/  ai-core/  registry/  preflight/
+│   └── editor/  preview/  diagram/  ai-tools/  templates/
 ├── src-tauri/
 │   ├── src/                rust: commands, config, git, github, paths, project, synctex
 │   ├── binaries/           tectonic-<triple>[.exe] sidecars (fetched)
@@ -19,6 +23,11 @@ localeaf/
 ├── scripts/fetch-tectonic.sh
 └── docs/
 ```
+
+The frontend is a pnpm workspace: feature engines live in `packages/*` behind
+injected ports, and the app shell wires them together. Read
+[Frontend architecture](architecture.md) before touching `packages/` — it
+covers the port pattern, the contribution registry, and the alias wiring.
 
 ## Prerequisites
 
@@ -51,6 +60,7 @@ Make sure both pass:
 
 ```bash
 pnpm build                                # frontend typecheck (noUnusedLocals/Parameters on)
+pnpm test                                 # vitest across src/ and packages/
 cd src-tauri && cargo check               # backend compiles
 ```
 
@@ -70,10 +80,11 @@ cd src-tauri && cargo check               # backend compiles
 
 ## Key extension points
 
-- Add an AI provider → `src/lib/ai-providers.ts` (`PROVIDERS` + `buildModel`). OpenAI-compatible providers just need a `baseURL`.
-- Add a command → declare in `src-tauri/src/*.rs`, register in `src-tauri/src/lib.rs`, wrap in `src/lib/tauri.ts`.
-- Add a template → `src-tauri/src/project.rs` (`template_for` + the template constant).
-- Add a tool for the AI → `src/lib/ai-tools.ts` (`createOpenLeafTools`).
+- Add an AI provider → `packages/ai-core/src/providers.ts` (`PROVIDERS` + `buildModel`). OpenAI-compatible providers just need a `baseURL`.
+- Add a Tauri command → declare in `src-tauri/src/*.rs`, register in `src-tauri/src/lib.rs`, wrap in `src/lib/tauri.ts`.
+- Add a project template → drop a folder with a `template.json` manifest into `src-tauri/resources/templates/`.
+- Add a tool for the AI → `packages/ai-tools/src/tools.ts`; app services it needs go through `AiToolsHost` (adapter in `src/lib/ai-tools.ts`).
+- Add a rail tab / palette or omnibar command / AI toolset → register it in `src/contributions/` (see [Frontend architecture](architecture.md#the-contribution-registry)).
 
 ## Sync and GitHub internals
 

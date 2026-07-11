@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **License changed from Apache-2.0 to AGPL-3.0-or-later.** OpenLeaf stays free
   and open source; the AGPL's network copyleft means anyone who distributes or
   hosts a modified version must share their source under the same license.
+- **The frontend is now a pnpm workspace.** Feature engines moved into nine
+  `@openleaf/*` packages (latex, ai-core, registry, editor, preview, diagram,
+  preflight, ai-tools, templates) behind injected ports, and the app shell's
+  rail tabs, palette/omnibar commands, and AI toolsets are now registered
+  through a contribution registry instead of hard-wired lists. No user-facing
+  behavior changed; see docs/architecture.md.
+
+### Fixed
+
+- The AI assistant's `toggle_theme` tool now actually switches the theme (its
+  event had no listener before).
 
 ### Added
 

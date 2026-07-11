@@ -252,6 +252,8 @@ The full list. Everything here runs on your machine. For the detailed tour, see 
 
 ## Architecture
 
+The frontend is a pnpm workspace: nine `@openleaf/*` engine packages (editor, preview, diagram, preflight, AI tools, templates, …) behind injected ports, wired into the app shell through a contribution registry. The deep dive is in [docs/architecture.md](docs/architecture.md).
+
 ```mermaid
 flowchart TB
   subgraph FE["FRONTEND · System WebView (WKWebView / WebView2 / WebKitGTK) · React 19 + TS"]
@@ -435,7 +437,8 @@ Have an idea? [Open a discussion](https://github.com/prajwal-svm/OpenLeaf/discus
 | [AI assistant](docs/ai-assistant.md) | Connect a model, or go local with Ollama |
 | [GitHub sync](docs/github-sync.md) | Back up and sync across machines |
 | [Keyboard shortcuts](docs/keyboard-shortcuts.md) | The ones worth memorizing |
-| [Development](docs/development.md) | Architecture and how to contribute |
+| [Development](docs/development.md) | Setup and how to contribute |
+| [Frontend architecture](docs/architecture.md) | The `@openleaf/*` packages, ports, and the contribution registry |
 | [Auto-updates](docs/updates.md) | How releases sign & ship in-app updates (maintainers) |
 | [FAQ](docs/faq.md) | Common questions and fixes |
 
