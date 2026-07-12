@@ -65,6 +65,15 @@ export default defineConfig({
           ],
         },
         {
+          label: "Compile & preview",
+          items: [
+            { label: "Compiling", slug: "compiling" },
+            { label: "PDF preview", slug: "pdf-preview" },
+            { label: "SyncTeX", slug: "synctex" },
+            { label: "LaTeX engines & packages", slug: "latex-engines" },
+          ],
+        },
+        {
           label: "Using OpenLeaf",
           items: [
             { label: "Features", slug: "features" },
