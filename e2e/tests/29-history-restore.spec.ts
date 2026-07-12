@@ -18,17 +18,13 @@ const RUN = Date.now().toString(36);
 const BASE = `histbase${RUN}`;
 const EDIT = `histedit${RUN}`;
 
+/** Stage everything and commit. Caller must already have the Git rail open so
+ *  compile auto-commit is suspended (see auto-commit.ts `sourceControlOpen`). */
 async function commitAll(page: import("../helpers").Page, message: string) {
-  await ensureGithubConnected(page);
-  // Two races hide the fresh edit from the panel: the compile-status chip is
-  // still "ok" from the previous compile (so the compile wait returns before
-  // the save-on-compile lands on disk), and the panel only refreshes on mount
-  // or git events. Do what a user does: hit Refresh until the change shows.
+  await openRailTab(page, "Git");
   // Stage all is hover-revealed (opacity-0): the plugin's own click waits for
   // visibility and never fires, so click the real button via the DOM. Keep
-  // refreshing + staging until the STAGED section is actually visible - the
-  // commit button reads that React state, and both the save-on-compile and
-  // the panel refresh land asynchronously.
+  // refreshing + staging until the STAGED section is actually visible.
   let stagedVisible = false;
   for (let i = 0; i < 25 && !stagedVisible; i++) {
     await page.evaluate(
@@ -102,6 +98,11 @@ test("commit twice, restore the first commit, then roll forward again", async ({
   test.setTimeout(300_000);
   await openProject(tauriPage, "E2E Doc");
   await expect(tauriPage.locator(".cm-content")).toBeVisible({ timeout: 20_000 });
+
+  // Open Git first so compile auto-commit is suspended (auto-commit.ts skips
+  // while the source-control rail is active). Otherwise a successful compile
+  // races ahead and leaves nothing for us to stage.
+  await ensureGithubConnected(tauriPage);
 
   // Commit 1: a base marker, persisted by a real compile (which saves).
   await typeInEditorAfter(tauriPage, "here.", ` ${BASE}`);
