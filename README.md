@@ -9,6 +9,7 @@
 **OpenLeaf is a free, open-source, local-first LaTeX and resume editor for macOS, Windows, and Linux, an offline [Overleaf](https://www.overleaf.com) alternative.** Your files stay on your disk. Every project is a real Git repo. Bring your own AI, or use none.
 
 [![Download](https://img.shields.io/github/v/release/prajwal-svm/OpenLeaf?label=Download&color=22c55e)](https://github.com/prajwal-svm/OpenLeaf/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/prajwal-svm/OpenLeaf/total?label=Downloads&color=22c55e)](https://github.com/prajwal-svm/OpenLeaf/releases)
 [![CI](https://github.com/prajwal-svm/OpenLeaf/actions/workflows/ci.yml/badge.svg)](https://github.com/prajwal-svm/OpenLeaf/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-22c55e.svg)](LICENSE)
 [![macOS · Windows · Linux](https://img.shields.io/badge/macOS%20·%20Windows%20·%20Linux-blue)](https://github.com/prajwal-svm/OpenLeaf/releases/latest)
