@@ -53,6 +53,17 @@ export default defineConfig({
           label: "Help",
           items: [{ label: "FAQ", slug: "faq" }],
         },
+        {
+          label: "Engineering",
+          collapsed: true,
+          items: [
+            { label: "Contributing", slug: "engineering/contributing" },
+            { label: "Architecture", slug: "engineering/architecture" },
+            { label: "Development", slug: "engineering/development" },
+            { label: "Releasing", slug: "engineering/releasing" },
+            { label: "Auto-update internals", slug: "engineering/updates" },
+          ],
+        },
       ],
     }),
   ],

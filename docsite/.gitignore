@@ -5,5 +5,8 @@ dist/
 # deps
 node_modules/
 
-# doc pages generated from ../docs by scripts/sync-docs.mjs (index.mdx is committed)
-src/content/docs/*.md
+# engineering pages generated from ../docs by scripts/sync-docs.mjs
+# (product docs in src/content/docs/ are authored and committed)
+src/content/docs/engineering/
+# shared repo media copied in by sync-docs.mjs
+public/media/

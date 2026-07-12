@@ -1,43 +1,86 @@
-// Sync the repo's authored docs (../docs/*.md) into Starlight's content
-// collection. The docs stay the single source of truth in the main tree; this
-// derives site pages from them by adding frontmatter (title + description) and
-// rewriting cross-doc links to site routes. Run automatically before dev/build.
-import { readdir, readFile, writeFile, mkdir, rm } from "node:fs/promises";
+// Sync engineering docs and shared media into the site before dev/build.
+//
+// Product docs are authored natively in src/content/docs/ and committed.
+// Engineering docs stay in the repo root (docs/*.md, CONTRIBUTING.md) as the
+// single source of truth next to the code; this script derives site pages from
+// them under src/content/docs/engineering/ (generated, gitignored) by adding
+// frontmatter and rewriting cross-doc links. It also copies the repo's shared
+// media/ folder (used by the README too) into public/media/.
+import { readdir, readFile, writeFile, mkdir, rm, cp } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const DOCS_DIR = join(here, "..", "..", "docs");
-const OUT_DIR = join(here, "..", "src", "content", "docs");
+const ROOT = join(here, "..", "..");
+const DOCS_DIR = join(ROOT, "docs");
+const OUT_DIR = join(here, "..", "src", "content", "docs", "engineering");
+const MEDIA_DIR = join(ROOT, "media");
+const MEDIA_OUT = join(here, "..", "public", "media");
 const BASE = "/OpenLeaf";
 const REPO = "https://github.com/prajwal-svm/OpenLeaf";
 
-// Product-facing docs only. Contributor/maintainer docs (development, releasing,
-// auto-update internals) live in the repo but are intentionally kept off the
-// user-facing site. Order here has no effect; the sidebar (astro.config) does.
-const USER_DOCS = new Set([
+// Engineering pages, synced from root docs/. CONTRIBUTING.md is added from the
+// repo root separately. Everything else in docs/ (product markdown kept for
+// GitHub readers, planning/) stays off the site.
+const ENGINEERING_DOCS = new Set(["architecture", "development", "releasing", "updates"]);
+
+// Product pages authored in src/content/docs/ that engineering docs may link to.
+const PRODUCT_SLUGS = new Set([
+  "overview",
+  "philosophy",
+  "why-openleaf",
   "getting-started",
   "install",
+  "library",
+  "templates",
+  "files",
+  "where-your-data-lives",
+  "editor",
+  "autocomplete",
+  "code-intelligence",
+  "spellcheck-grammar",
+  "citations",
+  "figures-diagrams",
+  "keyboard-shortcuts",
+  "compiling",
+  "pdf-preview",
+  "synctex",
+  "latex-engines",
+  "preflight",
+  "export",
+  "ai-setup",
+  "ai-chat",
+  "ai-inline-edit",
+  "ai-figures",
+  "git-history",
+  "github-sync",
+  "settings",
+  "updates",
+  "faq",
   "features",
   "ai-assistant",
-  "github-sync",
-  "keyboard-shortcuts",
-  "faq",
 ]);
 
-/** Turn a doc link into a site route (if it's a published page) or a GitHub link (if not). */
+/** Turn a doc link into a site route (engineering or product) or a GitHub link. */
 function rewriteLink(url) {
-  // Leave external links, images, mail, absolute paths, and in-page anchors alone.
+  // Leave external links, mail, absolute paths, and in-page anchors alone.
   if (/^(https?:|mailto:|#|\/)/.test(url)) return url;
   // Links to the repo README map to the README on GitHub.
   const readme = url.match(/^\.\.\/README\.md(#.*)?$/);
   if (readme) return `${REPO}/blob/main/README.md${readme[1] ?? ""}`;
+  const contributing = url.match(/^\.\.\/CONTRIBUTING\.md(#.*)?$/);
+  if (contributing) return `${BASE}/engineering/contributing/${contributing[1] ?? ""}`;
+  // Media images referenced from docs/ resolve to the copied public folder.
+  const media = url.match(/^(?:\.\.\/)?media\/(.+)$/);
+  if (media) return `${BASE}/media/${media[1]}`;
   // Sibling doc: `name.md` (optionally `./`), optionally with an #anchor.
   const doc = url.match(/^\.?\/?([\w-]+)\.md(#.*)?$/);
   if (doc) {
     const [, name, hash = ""] = doc;
-    // Published page -> clean site route; contributor doc -> its GitHub source.
-    return USER_DOCS.has(name) ? `${BASE}/${name}/${hash}` : `${REPO}/blob/main/docs/${name}.md${hash}`;
+    if (ENGINEERING_DOCS.has(name)) return `${BASE}/engineering/${name}/${hash}`;
+    if (PRODUCT_SLUGS.has(name)) return `${BASE}/${name}/${hash}`;
+    return `${REPO}/blob/main/docs/${name}.md${hash}`;
   }
   return url;
 }
@@ -73,20 +116,29 @@ function transform(src) {
 }
 
 async function main() {
+  await rm(OUT_DIR, { recursive: true, force: true });
   await mkdir(OUT_DIR, { recursive: true });
-  // Clear previously generated pages (all .md; the hand-authored index.mdx is
-  // kept) so dropped docs don't linger as stale routes.
-  for (const f of await readdir(OUT_DIR)) {
-    if (f.endsWith(".md")) await rm(join(OUT_DIR, f));
-  }
-  const entries = (await readdir(DOCS_DIR)).filter(
-    (f) => f.endsWith(".md") && USER_DOCS.has(basename(f, ".md")),
-  );
-  for (const file of entries) {
+
+  let count = 0;
+  for (const file of await readdir(DOCS_DIR)) {
+    if (!file.endsWith(".md") || !ENGINEERING_DOCS.has(basename(file, ".md"))) continue;
     const src = await readFile(join(DOCS_DIR, file), "utf8");
     await writeFile(join(OUT_DIR, basename(file)), transform(src), "utf8");
+    count++;
   }
-  console.log(`sync-docs: wrote ${entries.length} product pages to src/content/docs/`);
+  const contributing = join(ROOT, "CONTRIBUTING.md");
+  if (existsSync(contributing)) {
+    const src = await readFile(contributing, "utf8");
+    await writeFile(join(OUT_DIR, "contributing.md"), transform(src), "utf8");
+    count++;
+  }
+
+  if (existsSync(MEDIA_DIR)) {
+    await rm(MEDIA_OUT, { recursive: true, force: true });
+    await cp(MEDIA_DIR, MEDIA_OUT, { recursive: true });
+  }
+
+  console.log(`sync-docs: wrote ${count} engineering pages, copied media/`);
 }
 
 main().catch((err) => {
