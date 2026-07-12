@@ -325,11 +325,44 @@ export interface AppConfig {
   ai_keys: Record<string, string>;
   /** User-authored extra instructions, sandboxed into the AI system prompt. */
   ai_system_prompt: string;
+  /** MCP server: expose in-app agent tools to external MCP clients. Off by default. */
+  mcp_enabled: boolean;
+  /** Loopback port for the MCP endpoint. */
+  mcp_port: number;
+  /** When true, mutating tools are removed from the advertised tool list. */
+  mcp_read_only: boolean;
+  /** "ask" or "auto_writes". Deletes always require a click. */
+  mcp_approval_policy: string;
 }
 
 export const getConfig = () => invoke<AppConfig>("get_config");
 export const setConfig = (config: AppConfig) =>
   invoke<void>("set_config", { config });
+
+// --- MCP server (token only via mcp_connection_info while running) ---
+
+export interface McpStatus {
+  running: boolean;
+  port: number | null;
+  url: string | null;
+  enabled: boolean;
+}
+
+export interface McpConnectionInfo {
+  url: string;
+  token: string;
+}
+
+export const mcpStatus = () => invoke<McpStatus>("mcp_status");
+export const mcpSetEnabled = (enabled: boolean, port: number) =>
+  invoke<McpStatus>("mcp_set_enabled", { enabled, port });
+export const mcpConnectionInfo = () => invoke<McpConnectionInfo>("mcp_connection_info");
+export const mcpRegenerateToken = () => invoke<void>("mcp_regenerate_token");
+export const mcpRegisterTools = (
+  tools: { name: string; description: string; inputSchema: unknown }[],
+) => invoke<void>("mcp_register_tools", { tools });
+export const mcpToolResult = (callId: number, result: unknown) =>
+  invoke<void>("mcp_tool_result", { callId, result });
 
 // --- GitHub (token stays in the Rust core; these never take/return it) ---
 

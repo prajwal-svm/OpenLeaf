@@ -189,6 +189,10 @@ const DEFAULT_CFG: AppConfig = {
   ai_model: "gpt-4o-mini",
   ai_keys: {},
   ai_system_prompt: "",
+  mcp_enabled: false,
+  mcp_port: 5323,
+  mcp_read_only: false,
+  mcp_approval_policy: "ask",
 };
 
 export function AISection() {
