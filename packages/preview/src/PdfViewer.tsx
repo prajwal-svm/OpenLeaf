@@ -10,6 +10,40 @@ import { registerPdfView, clearPdfView, pageClickToBp } from "./pdfController";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
+// One worker for every document load. Per-load worker spawns can wedge forever
+// in occluded WebViews (CI, minimized windows), hanging loadingTask.promise
+// with no error and leaving the pane blank. A worker passed in explicitly also
+// survives loadingTask.destroy(), so document switches can't kill it.
+let sharedWorker: pdfjsLib.PDFWorker | null = null;
+function getWorker(): pdfjsLib.PDFWorker {
+  if (!sharedWorker) sharedWorker = new pdfjsLib.PDFWorker();
+  return sharedWorker;
+}
+function resetWorker() {
+  try {
+    sharedWorker?.destroy();
+  } catch {
+    /* ignore */
+  }
+  sharedWorker = null;
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${what} timed out after ${ms}ms`)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
 /** The word under a screen point in the PDF text layer, for word-precise inverse
  *  SyncTeX. Returns null over whitespace, an image, or when no text is hit. */
 function wordAtPoint(clientX: number, clientY: number): string | null {
@@ -446,9 +480,25 @@ export const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function Pd
     let cancelled = false;
 
     (async () => {
+      const open = async () => {
+        loadingTask = pdfjsLib.getDocument({ data: data.slice(), worker: getWorker() });
+        return withTimeout(loadingTask.promise, 30_000, "pdf load");
+      };
       try {
-        loadingTask = pdfjsLib.getDocument({ data: data.slice() });
-        const doc = await loadingTask.promise;
+        let doc: pdfjsLib.PDFDocumentProxy;
+        try {
+          doc = await open();
+        } catch (first) {
+          // A wedged worker hangs the load silently; replace it and retry once.
+          (loadingTask as pdfjsLib.PDFDocumentLoadingTask | null)?.destroy().catch(() => {});
+          resetWorker();
+          if (cancelled) return;
+          try {
+            doc = await open();
+          } catch {
+            throw first;
+          }
+        }
         if (cancelled) return;
         docRef.current = doc;
         await buildLayout(doc);
