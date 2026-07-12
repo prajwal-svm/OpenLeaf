@@ -16,7 +16,6 @@ Open Settings from the gear in the rail, `/settings` in the search omnibar, or *
 | **Editor font** | Select | System default | Editor monospace: JetBrains Mono, Fira Code, Cascadia Code, SF Mono, Menlo, Consolas, or system. |
 | **Open projects in** | Select | Split view | The layout a project opens with: Split view, Editor only, or PDF only. |
 | **Show file tree on open** | Toggle | On | Reveal the Source Tree whenever a project opens. |
-| **Label the compile button** | Toggle | Off | Adds the word "Compile" next to the toolbar's play icon. |
 | **Preview PDF on hover** | Toggle | On | The library's page-one [hover previews](/OpenLeaf/library/#hover-previews). |
 | **Accent color** | Swatches | Blue | The highlight color everywhere: Blue, Green, Purple, Rose, Orange, or Teal. |
 

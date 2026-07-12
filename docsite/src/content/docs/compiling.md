@@ -8,11 +8,11 @@ OpenLeaf compiles with **Tectonic**, a modern XeTeX-based engine that ships insi
 ## Starting a compile
 
 - **⌘↵** (Ctrl+Enter), anywhere.
-- The **Recompile** play button at the top right of the toolbar.
+- The **Compile** button at the top right of the toolbar.
 - **Recompile** in the ⌘K command palette.
 - Opening a project into a view that shows the PDF pane compiles once automatically, so you land on a fresh preview.
 
-Compiling always saves the active file first, so the PDF matches what you see. If you're in editor-only view, compiling reveals the split view so you can watch the result. Prefer a labeled button over an icon? Settings, Appearance has **Label the compile button**.
+Compiling always saves the active file first, so the PDF matches what you see. If you're in editor-only view, compiling reveals the split view so you can watch the result.
 
 ## Auto-compile
 
