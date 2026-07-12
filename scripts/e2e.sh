@@ -29,6 +29,8 @@ cleanup() {
   pkill -P "$APP_PID" 2>/dev/null || true
   kill "$APP_PID" 2>/dev/null || true
   pkill -f "target/debug/openleaf" 2>/dev/null || true
+  # Keep the app log with the test artifacts (CI uploads test-results/).
+  mkdir -p test-results && cp "$LOG" test-results/app.log 2>/dev/null || true
 }
 trap cleanup EXIT
 
