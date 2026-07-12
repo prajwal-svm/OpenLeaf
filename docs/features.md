@@ -117,7 +117,7 @@ a readiness aid, not a formal accessibility certification.
 
 ## History (Git-backed)
 
-Every project is a git repo, and OpenLeaf auto-commits on save. So you get:
+Every project is a git repo, and OpenLeaf commits automatically: after every successful compile, and shortly after you stop editing. So you get:
 
 - A history view with the full commit log.
 - Side-by-side diffs, unified or split.

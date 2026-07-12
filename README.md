@@ -6,7 +6,9 @@
 
 ### Cursor for technical documents. Runs entirely on your machine.
 
-**OpenLeaf is a free, open-source, AI-native LaTeX studio for macOS, Windows, and Linux. No account, no cloud, no TeX install.** Every save is a Git commit. The AI doesn't stop at editing: it compiles your document and reads the PDF to verify its own edit. Bring your own key, run a local model, or turn it off.
+**OpenLeaf is a free, open-source, AI-native LaTeX studio for macOS, Windows, and Linux. No account, no cloud, no TeX install.** Every successful compile becomes a Git commit. The AI doesn't stop at editing: it compiles your document and reads the PDF to verify its own edit. Bring your own key, run a local model, or turn it off.
+
+*Documents should outlive services.*
 
 [![Download](https://img.shields.io/github/v/release/prajwal-svm/OpenLeaf?label=Download&color=22c55e)](https://github.com/prajwal-svm/OpenLeaf/releases/latest)
 [![Downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fprajwal-svm%2FOpenLeaf%2Fmain%2F.github%2Fbadges%2Fdownloads.json)](https://github.com/prajwal-svm/OpenLeaf/releases)
@@ -35,6 +37,9 @@ If OpenLeaf is useful to you, a star helps other people find it.
 
 </div>
 
+> [!NOTE]
+> **Status:** OpenLeaf is already usable for real projects. Some advanced workflows and package compatibility are still evolving. [Feedback and bug reports](https://github.com/prajwal-svm/OpenLeaf/issues) are welcome.
+
 <br/>
 
 <table align="center">
@@ -52,7 +57,7 @@ If OpenLeaf is useful to you, a star helps other people find it.
 ## Who it's for
 
 - **Students.** Write assignments, reports, and a thesis without installing a full TeX distribution. The compiler ships inside the app.
-- **Researchers.** Manage large multi-file papers with citations, cross-references, Git history, and an AI that reads the whole project.
+- **Researchers.** Manage large multi-file papers with citations, cross-references, Git commit history, and an AI that reads the whole project.
 - **Job seekers.** Build ATS-friendly LaTeX resumes, tailor them to job descriptions, and keep every version of every variant.
 - **Developers.** Documents as plain files in real Git repos, synced to GitHub, open in any editor. LaTeX treated like code.
 
@@ -85,24 +90,26 @@ Prerequisites and production builds are in the [install guide](docs/install.md).
 
 ## Why OpenLeaf
 
-Cursor didn't set out to be another VS Code, and OpenLeaf isn't another Overleaf. You write LaTeX the way you write code, so your editor should treat it that way: AI-native, Git-backed, and local. Call it document engineering.
+OpenLeaf isn't trying to recreate Overleaf on the desktop. It's built around a different idea: technical documents deserve the same AI, Git, and local-first workflows that developers expect from modern code editors. This is document engineering.
 
 - It compiles on your machine. No server, no upload queue, no account.
 - Your files live in a plain folder on your disk. Nothing leaves it unless you tell it to.
-- Every project is a Git repo, and every save is a commit.
+- Every project is a Git repo; every successful compile becomes a commit.
 - AI is optional. Plug in your own key, or run a local model with Ollama, or turn it off.
 - The files are just `.tex`, `.bib`, and images. Open them in any other editor whenever you want.
 - It works with no internet at all.
 
 You get the polish of a cloud editor without handing your documents to one.
 
-And while it's at it, OpenLeaf quietly replaces the rest of your stack: the paid resume builder, the ATS checker, the accessibility auditor, the Git client, and the AI copilot subscription.
+You can assemble most of these features yourself with VS Code extensions, Git, Copilot, TeX Live, PDF viewers, ATS tools, and scripts. OpenLeaf integrates them into one application that works out of the box.
+
+**And while it's at it, OpenLeaf quietly replaces the rest of your stack: the paid resume builder, the ATS checker, the accessibility auditor, the Git client, and the AI copilot subscription.**
 
 <br/>
 
 ## What makes it different
 
-**Every save is a Git commit.** Undo a paragraph from yesterday. Compare two versions side by side. Branch your resume before every interview. Push it to GitHub with one click. No plugin, no setup, no `resume_final_v3_FINAL.tex`.
+**Every compile becomes a Git commit.** Undo a paragraph from yesterday. Compare two versions side by side. Branch your resume before every interview. Push it to GitHub with one click. No plugin, no setup, no `resume_final_v3_FINAL.tex`.
 
 This is OpenLeaf's quiet superpower. Every project is a real Git repo on your disk: the app commits your work automatically (after every successful compile, and shortly after you stop editing) and gives you history, diffs, and one-click restore right in the UI. And because it's real Git, `git log` and `git blame` work from a terminal too.
 
@@ -127,7 +134,7 @@ OpenLeaf sits where four product categories overlap: LaTeX editors, cloud writin
 | Works fully offline | Yes | No | Yes | Yes | Partly (CLI only) | Partly | No |
 | Zero LaTeX setup (no TeX install) | Yes, engine bundled | Yes (cloud) | No (multi-GB TeX Live / MiKTeX) | No (bring your own TeX + config) | Yes | n/a | n/a |
 | Files stay on your disk | Yes | No | Yes | Yes | No | Partly | No |
-| Version history | Real Git, auto-commit on save, diffs, one-click restore | Paid feature | Manual | Manual | Limited | Limited | No |
+| Version history | Real Git, automatic commits, diffs, one-click restore | Paid feature | Manual | Manual | Limited | Limited | No |
 | Push to GitHub | One click | Paid sync | Manual | Manual | No | No | No |
 | AI assistant | Built in: 9 providers, bring your own key or local Ollama | Paid add-on | None | Paid Copilot | None | Copilot / Gemini subscription | Upsell |
 | AI edits gated by approval diffs | Yes, every file change | No | n/a | No | n/a | No | No |
@@ -257,7 +264,7 @@ The full list. Everything here runs on your machine. For the detailed tour, see 
 - Source tree: create files and folders (nested to any depth), rename, delete, duplicate (files and whole folders), and reorganize by drag and drop; right-click a folder to add a file or folder inside it; upload files and set the main document
 - Multi-file support for `\input`, images (PNG/JPG/PDF/EPS), and `.bib`, with editor tabs
 - Autosave to disk shortly after you stop typing
-- Every project is a Git repo with auto-commit on save, a full history view, side-by-side diffs, and one-click restore
+- Every project is a Git repo with automatic commits (after successful compiles, and shortly after you stop editing), a full history view, side-by-side diffs, and one-click restore
 
 **Source control and sync**
 - Stage or discard changes, write a message, and Commit, Push, or Pull
@@ -293,11 +300,15 @@ The full list. Everything here runs on your machine. For the detailed tour, see 
 
 ## Philosophy
 
+> **Documents should outlive services.**
+>
+> Your thesis shouldn't disappear because a company shuts down.
+>
+> Your resume shouldn't require a subscription.
+>
+> Your research shouldn't depend on an internet connection.
+>
 > Your files belong to you.
->
-> Every project is a folder. Every edit is Git history.
->
-> No subscription and no account. Bring your own AI, or none at all.
 
 <br/>
 
