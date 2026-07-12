@@ -15,6 +15,7 @@ import {
   Keyboard,
   LifeBuoy,
   Palette,
+  Plug,
   RotateCcw,
   Scale,
   ScrollText,
@@ -33,6 +34,7 @@ import { EngineSection } from "@/components/settings/EngineSection";
 import { DownloadsSection } from "@/components/settings/DownloadsSection";
 import { AISection } from "@/components/settings/AISection";
 import { GitHubSection } from "@/components/settings/GitHubSection";
+import { McpSection } from "@/components/settings/McpSection";
 import {
   Select,
   SelectContent,
@@ -56,6 +58,7 @@ type Section =
   | "engine"
   | "downloads"
   | "github"
+  | "mcp"
   | "help";
 
 const NAV: { id: Section; label: string; icon: typeof Palette }[] = [
@@ -67,6 +70,7 @@ const NAV: { id: Section; label: string; icon: typeof Palette }[] = [
   { id: "engine", label: "LaTeX Engine", icon: Cpu },
   { id: "downloads", label: "Offline & Downloads", icon: HardDriveDownload },
   { id: "github", label: "GitHub", icon: Github },
+  { id: "mcp", label: "MCP", icon: Plug },
   { id: "help", label: "Help & About", icon: LifeBuoy },
 ];
 
@@ -573,6 +577,8 @@ export function SettingsModal() {
                 onRemoteChanged={() => void refreshTree()}
               />
             )}
+
+            {section === "mcp" && <McpSection />}
 
             {section === "help" && <HelpSection />}
           </div>
