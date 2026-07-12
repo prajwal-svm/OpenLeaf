@@ -1,57 +1,59 @@
 ---
 title: "GitHub sync"
-description: "OpenLeaf is local-first, so every project already has its own .git history on disk. GitHub integration lets you back a project up to the cloud and sync it acros"
+description: "Connect GitHub with a device code or a token, publish a project as a new or existing repo, push and pull between machines, and how your token is protected."
 ---
 
-OpenLeaf is local-first, so every project already has its own `.git` history on disk. GitHub integration lets you back a project up to the cloud and sync it across your machines. There's no OpenLeaf account, just your own GitHub.
+GitHub sync gives every project an off-machine backup and a way to move between computers, built on the [real Git repo](/OpenLeaf/git-history/) each project already is. There's no OpenLeaf account in the picture, just your own GitHub.
 
-## Connect your account (once per machine)
+## Connecting your account
 
-1. Open Settings → GitHub.
-2. Click **Connect GitHub**. A one-time code appears in the app, and your browser opens to `github.com/login/device`.
-3. Enter the code and authorize OpenLeaf. The app detects it within a few seconds and shows your account.
-4. Your account badge now appears in the top toolbar.
+Settings, **GitHub**, then either route:
 
-This uses OAuth device flow, so there's no copy-pasting long-lived tokens, and the app only requests `repo` + `read:user` scope.
+- **Connect GitHub** (recommended): a device-code flow. OpenLeaf shows a short code, your browser opens `github.com/login/device` (with a **Copy** button for the code), you approve, and the app detects it within seconds. The connection requests only the `repo` and `read:user` scopes.
+- **Personal access token**: expand "Advanced: use a personal access token" and paste a PAT if you prefer minting your own credentials.
 
-> Prefer a personal access token (e.g. for CI or fine-grained scopes)? Expand **Advanced: use a personal access token** and paste a PAT instead.
+Once connected, your avatar and username appear in Settings and in the top toolbar's GitHub menu. **Disconnect** forgets the token.
 
-## Publish a project
+### How your token is protected
 
-To put a project on GitHub for the first time:
+The token is stored in OpenLeaf's local config and never handed to the app's UI layer; the interface only ever learns "connected as @you". When Git needs to authenticate, the token is injected through an in-memory credential helper, so it never appears in a command line, in `.git/config`, or in your shell history. Older builds that embedded tokens in remote URLs are cleaned up automatically at startup.
 
-1. Open the Source Control panel (the branch icon in the rail).
-2. Click **Publish to GitHub**.
-3. Choose one of:
-   - **Create new repository**: pick a name and public/private. OpenLeaf creates it, links it as the project's `origin`, and pushes.
-   - **Link existing**: pick one of your repos. OpenLeaf sets `origin` and pushes.
+## Publishing a project
 
-Once published, Push and Pull become enabled.
+In the Source Control panel, click **Publish to GitHub**:
 
-## The daily loop
+- **Create new repository**: pick a name (pre-filled from the project), keep **Private (recommended)** checked or not, and **Create & push**. OpenLeaf creates the repo, makes the initial commit, wires up `origin`, and pushes.
+- **Link existing**: pick from a searchable list of your repositories (private ones show a lock) and **Link & push**.
 
-- **Commit**: write a message and commit locally (auto-commits also happen on save).
-- **Push**: commits and pushes to GitHub in one click. Use this on your first machine when you're done.
-- **Pull**: on your other machine, pull to get the latest. The panel shows ahead/behind counts so you know when to push or pull.
+After publishing, the toolbar's GitHub menu offers **Open in GitHub** and **Copy repository link**.
 
-### Two-device workflow
+## Day-to-day sync
 
-1. Machine A: work, then Push.
-2. Machine B: open the project, Pull, continue.
+The Source Control panel's **Push** and **Pull** buttons do what they say, against `origin` on your current branch. The **ahead/behind** indicator (↑ ↓) next to the branch pill tells you when there's something to push or pull.
 
-Your full history travels with the repo, so you can also clone it elsewhere or browse it on github.com.
+### Two computers
 
-## Changing or removing the remote
+1. On machine A: publish the project, work, **Push**.
+2. On machine B: connect the same GitHub account and get the repo into `~/.openleaf/projects/` (clone it there with Git, or copy the project folder once). From then on, **Pull**, work, **Push**.
+3. Back on A: **Pull** before you start. The indicator reminds you.
 
-- **Change repo**: re-run Publish to point the project at a different repo.
-- **Unlink**: removes the `origin` remote. The local project and history are untouched, and Push/Pull are disabled until you publish again.
+Cover color, main-document choice, and history all travel, because they live in the project folder itself.
 
-## Disconnect your account
+## Changing your mind
 
-In Settings → GitHub, the connected-account card has a **Disconnect** button. This clears the token from this machine only. It doesn't affect the repos you've already pushed.
+- **Change repo** re-opens the publish dialog to point `origin` somewhere else.
+- **Unlink** removes the remote; the local project and its history are untouched.
 
-## Notes and troubleshooting
+## Limits, stated plainly
 
-- SSH remotes aren't supported for token-authenticated push. Use HTTPS (Publish sets this up automatically).
-- A first push to an existing repo that already has commits may need a pull first. OpenLeaf will tell you.
-- The token is stored locally in `~/.openleaf/config.json` (with `0600` permissions on Unix). Moving it to the OS keychain is on the roadmap.
+- **Conflicts aren't resolved in-app.** If a pull hits a merge conflict, the raw Git message is shown; resolve it with any Git tool, then carry on in OpenLeaf.
+- **HTTPS remotes** are what OpenLeaf authenticates; Publish sets this up correctly for you.
+- **No branch UI yet**: the app works on your current branch (`main` by default); branching happens on the command line if you want it.
+
+## If something fails
+
+- "No remote 'origin'": publish first; Push and Pull need a remote.
+- Push rejected because the remote has commits: pull first, then push.
+- "No GitHub token set": connect in Settings, GitHub.
+
+More in the [FAQ](/OpenLeaf/faq/#github-sync).

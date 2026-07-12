@@ -90,10 +90,9 @@ export default defineConfig({
           ],
         },
         {
-          label: "Using OpenLeaf",
+          label: "History & sync",
           items: [
-            { label: "Features", slug: "features" },
-            { label: "AI assistant", slug: "ai-assistant" },
+            { label: "Git history & source control", slug: "git-history" },
             { label: "GitHub sync", slug: "github-sync" },
           ],
         },

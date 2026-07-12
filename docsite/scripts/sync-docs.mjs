@@ -58,8 +58,6 @@ const PRODUCT_SLUGS = new Set([
   "settings",
   "updates",
   "faq",
-  "features",
-  "ai-assistant",
 ]);
 
 /** Turn a doc link into a site route (engineering or product) or a GitHub link. */
