@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-07-11
+
 ### Changed
 
 - **License changed from Apache-2.0 to AGPL-3.0-or-later.** OpenLeaf stays free
@@ -23,9 +25,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The AI assistant's `toggle_theme` tool now actually switches the theme (its
   event had no listener before).
+- Reasoning models over the Z.AI and DeepSeek providers no longer have their
+  replies aborted mid-thought: their reasoning stream was dropped by the strict
+  OpenAI provider, which starved the stall watchdog.
+- The thinking indicator now shows for the whole AI run instead of appearing
+  only after the first token, and a reply interrupted by closing the panel
+  leaves a visible notice instead of vanishing.
+- Renaming a file from the tree's context menu no longer closes its input box
+  before you can type (the menu's closing focus jump committed the old name).
+- Edits made within a second of closing or reloading the app are no longer
+  lost; pending autosaves flush on the way out.
+- The diagram composer and AI figure preview no longer freeze after a
+  successful compile: PDF rasterization reuses one render worker with a
+  watchdog instead of spawning a fresh one per preview (which could wedge).
+- Requesting a recompile while a compile is already running now queues one
+  rerun instead of being silently dropped, and stacked-up stale compile
+  requests are skipped instead of running one after another.
+- Forward SyncTeX jumps land reliably right after a recompile (the jump now
+  retries while the preview's page registry rebuilds).
+- A compile that hangs (for example on a stalled package download) is now
+  killed after five minutes and reported, instead of blocking every following
+  compile forever.
+- Font files opened from the tree show a binary-file notice instead of a
+  broken text editor, and settings deep-links open the requested section.
 
 ### Added
 
+- **Library hover previews** - hovering a compiled project's book slides in a
+  page-1 preview of its PDF, so you can tell documents apart at a glance. A
+  bookmark-only filter sits beside the search box, and an appearance setting
+  turns hover previews off.
+- **Auto-compile on open** - opening a project whose layout shows the PDF pane
+  compiles it immediately, so the preview is fresh without pressing anything.
+- **Live reasoning view** - thinking models stream their reasoning into an
+  auto-expanding card that collapses to "Thought for Ns" when the answer
+  starts, and each reasoning phase interleaves with the tool calls it led to.
+- **Copy button on chat bubbles** - hover any message to copy it.
 - **Draw with AI (figures)** - turn a prompt or a selected paragraph into a
   publication-quality figure. The assistant drafts TikZ, compiles just the figure
   in isolation, and (on vision-capable models) looks at the rendered result to fix
@@ -96,6 +131,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still gets the immersive presentation mode.
 - A project's cover color is now saved to its `project.json` on disk, so it
   travels with the project across machines instead of living only in the browser.
+- The preview toolbar's zoom buttons use magnifier icons.
+- The full end-to-end test suite now runs in CI on macOS, Linux, and Windows
+  against the real app, and the repository gained dependency, security-audit,
+  and license gates (Dependabot, CodeQL, cargo-deny).
 
 ## [0.2.2] - 2026-07-10
 
@@ -346,7 +385,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compilation, SyncTeX, Git integration, GitHub sync, and bring-your-own-key AI
   assistance.
 
-[Unreleased]: https://github.com/prajwal-svm/OpenLeaf/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/prajwal-svm/OpenLeaf/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/prajwal-svm/OpenLeaf/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/prajwal-svm/OpenLeaf/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/prajwal-svm/OpenLeaf/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/prajwal-svm/OpenLeaf/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/prajwal-svm/OpenLeaf/releases/tag/v0.1.1
