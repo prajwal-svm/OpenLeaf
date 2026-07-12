@@ -5,6 +5,8 @@ description: "The template gallery: 19 ready-to-edit starting points from ATS-sa
 
 Every OpenLeaf project starts from a template. The gallery gives you a real page-one preview of each one, so you pick by looking at the output, not by guessing from a name. Templates ship as plain, editable LaTeX source: what you create is yours to change without limits.
 
+![The template gallery with category rail, search, and page-one previews](/OpenLeaf/media/project-templates.png)
+
 ## The gallery
 
 Click **New project** in the library (or type `/create` in the search omnibar) and the two-step dialog opens:
