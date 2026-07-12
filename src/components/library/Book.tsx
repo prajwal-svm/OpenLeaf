@@ -111,9 +111,9 @@ export function Book({
         <div
           className={cn(
             "relative transition-transform duration-500 ease-out [transform-style:preserve-3d]",
-            variant !== "simple"
-              ? "group-hover:[transform:rotateY(-18deg)_translateY(-2px)]"
-              : "group-hover:-translate-y-1"
+            preview || variant === "simple"
+              ? "group-hover:-translate-y-1"
+              : "group-hover:[transform:rotateY(-18deg)_translateY(-2px)]"
           )}
           style={{ width: "100%", aspectRatio: "5 / 6.4" }}
         >
