@@ -1,10 +1,21 @@
 name: CI
 
+# Docs-only changes skip CI entirely: a push here also CANCELS any in-flight
+# run on the same ref (concurrency group), so letting a README tweak through
+# would kill a 30-minute three-platform e2e round.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "docsite/**"
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "docsite/**"
 
 # Cancel superseded runs on the same ref (e.g. rapid pushes to a PR).
 concurrency:
