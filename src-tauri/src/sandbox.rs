@@ -80,6 +80,33 @@ pub fn is_root_delete(root: &Path, rel: &str) -> bool {
     }
 }
 
+/// Light hardening for a user-chosen export/save destination. These paths
+/// legitimately live outside the project sandbox (a native save dialog), so we
+/// do not sandbox them to the project; we only refuse directory targets, empty
+/// / relative destinations, and missing parent folders. Shared by `export_pdf`,
+/// `write_bytes_file`, and other "user picked this path" writers.
+pub fn guard_export_dest(dest: &str) -> Result<(), String> {
+    let dest = dest.trim();
+    if dest.is_empty() {
+        return Err("export destination is empty".into());
+    }
+    // Native save dialogs always return absolute paths. A relative dest is a
+    // strong signal of a crafted IPC call rather than a user-chosen location.
+    let p = Path::new(dest);
+    if !p.is_absolute() {
+        return Err("export destination must be an absolute path".into());
+    }
+    if p.is_dir() {
+        return Err("export destination is a directory, not a file".into());
+    }
+    if let Some(parent) = p.parent() {
+        if !parent.as_os_str().is_empty() && !parent.is_dir() {
+            return Err("export destination folder does not exist".into());
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,6 +152,25 @@ mod tests {
         assert!(is_root_delete(&root, "./"));
         assert!(is_root_delete(&root, "././"));
         assert!(!is_root_delete(&root, "main.tex"));
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn guard_export_dest_rejects_relative_and_empty() {
+        assert!(guard_export_dest("").is_err());
+        assert!(guard_export_dest("   ").is_err());
+        assert!(guard_export_dest("relative/out.pdf").is_err());
+        assert!(guard_export_dest("./out.pdf").is_err());
+    }
+
+    #[test]
+    fn guard_export_dest_rejects_directory_and_missing_parent() {
+        let root = temp_root();
+        assert!(guard_export_dest(&root.to_string_lossy()).is_err());
+        let missing = root.join("no-such-dir").join("out.pdf");
+        assert!(guard_export_dest(&missing.to_string_lossy()).is_err());
+        let ok = root.join("out.pdf");
+        assert!(guard_export_dest(&ok.to_string_lossy()).is_ok());
         std::fs::remove_dir_all(&root).ok();
     }
 

@@ -1,4 +1,5 @@
 mod assets;
+mod chats;
 mod citation;
 mod commands;
 mod config;
@@ -133,6 +134,8 @@ pub fn run() {
             commands::reveal_in_dir,
             config::get_config,
             config::set_config,
+            chats::load_project_chats,
+            chats::save_project_chats,
             git::git_auto_commit,
             git::git_auto_commit_update,
             git::git_log,

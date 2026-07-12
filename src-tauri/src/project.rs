@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 use crate::paths;
-use crate::sandbox::{is_root_delete, resolve};
+use crate::sandbox::{guard_export_dest, is_root_delete, resolve};
 
 /// Public path resolver (sandbox). Re-exported so call sites keep importing
 /// `crate::project::resolve_in_project`.
@@ -320,6 +320,20 @@ pub fn read_app_log(max_bytes: usize) -> Result<String, String> {
 
 #[tauri::command]
 pub fn set_main_doc(project_id: String, main_doc: String) -> Result<ProjectMeta, String> {
+    let main_doc = main_doc.trim().to_string();
+    if main_doc.is_empty() {
+        return Err("main document path cannot be empty".into());
+    }
+    // Reject traversal / absolute paths and require the file to exist inside
+    // the project before we persist it as the compile entry point.
+    let resolved = resolve(&project_id, &main_doc)?;
+    if !resolved.is_file() {
+        return Err(format!("main document not found: {main_doc}"));
+    }
+    let lower = main_doc.to_ascii_lowercase();
+    if !(lower.ends_with(".tex") || lower.ends_with(".ltx") || lower.ends_with(".latex")) {
+        return Err("main document must be a .tex file".into());
+    }
     let mut meta = read_meta(&project_id)?;
     meta.main_doc = main_doc;
     write_meta(&project_id, &meta)?;
@@ -523,23 +537,6 @@ fn unique_random_slug(root: &Path) -> Result<String, String> {
             .map(|d| d.subsec_nanos())
             .unwrap_or(0)
     )))
-}
-
-/// Light hardening for a user-chosen export/save destination. These paths
-/// legitimately live outside the project sandbox (a native save dialog), so we
-/// do not sandbox them; we only refuse to overwrite an existing directory and
-/// require that the target's parent folder already exists.
-fn guard_export_dest(dest: &str) -> Result<(), String> {
-    let p = Path::new(dest);
-    if p.is_dir() {
-        return Err("export destination is a directory, not a file".into());
-    }
-    if let Some(parent) = p.parent() {
-        if !parent.as_os_str().is_empty() && !parent.is_dir() {
-            return Err("export destination folder does not exist".into());
-        }
-    }
-    Ok(())
 }
 
 #[tauri::command]

@@ -310,12 +310,15 @@ async fn run_tectonic(
 /// Write base64-decoded bytes to an absolute path chosen by the user (e.g. a
 /// native "Save as" dialog). Used to export a rendered figure PNG. Mirrors the
 /// trust model of `export_pdf` (the destination comes from a user dialog).
+/// Hardened with `guard_export_dest` so a crafted IPC call cannot write to a
+/// relative path or a missing parent (same checks as PDF export).
 #[tauri::command]
 pub async fn write_bytes_file(
     dest: String,
     data_base64: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    crate::sandbox::guard_export_dest(&dest)?;
     let bytes = decode_b64(&data_base64)?;
     let dest_for_allow = dest.clone();
     tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
