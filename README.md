@@ -104,7 +104,7 @@ And while it's at it, OpenLeaf quietly replaces the rest of your stack: the paid
 
 **Every save is a Git commit.** Undo a paragraph from yesterday. Compare two versions side by side. Branch your resume before every interview. Push it to GitHub with one click. No plugin, no setup, no `resume_final_v3_FINAL.tex`.
 
-This is OpenLeaf's quiet superpower. Every project is a real Git repo on your disk: the app commits as you save and gives you history, diffs, and one-click restore right in the UI, and because it's real Git, `git log` and `git blame` work from a terminal too.
+This is OpenLeaf's quiet superpower. Every project is a real Git repo on your disk: the app commits your work automatically (after every successful compile, and shortly after you stop editing) and gives you history, diffs, and one-click restore right in the UI. And because it's real Git, `git log` and `git blame` work from a terminal too.
 
 <div align="center">
 <img src="media/git-diff.png" alt="Side-by-side diff of a past version" width="85%" />
