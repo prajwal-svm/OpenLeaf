@@ -2,6 +2,7 @@ import { test, expect } from "../fixtures";
 import {
   ensureAiConnected,
   fillTextarea,
+  inProviderCard,
   newChat,
   openProject,
   openRailTab,
@@ -97,6 +98,10 @@ test("custom instructions steer a real reply", async ({ tauriPage }) => {
   // the Save button is always enabled (it disables when the text is unchanged).
   const prefix = `MANGO${RUN}`;
   await openSettings(tauriPage, "ai");
+  await tauriPage.waitForFunction(
+    inProviderCard(`return (card.textContent || '').includes('Active');`),
+    10_000,
+  );
   const instructionTa = 'textarea[placeholder*="British English"]';
   await fillTextarea(
     tauriPage,
@@ -119,8 +124,14 @@ test("custom instructions steer a real reply", async ({ tauriPage }) => {
     180_000,
   );
 
-  // Restore: clear the instruction so later runs aren't steered.
+  // Restore: clear the instruction so later runs aren't steered. The modal
+  // hydrates the textarea from the async config fetch; clearing before that
+  // resolves gets clobbered back to the saved text, leaving Save disabled.
   await openSettings(tauriPage, "ai");
+  await tauriPage.waitForFunction(
+    `((document.querySelector(${JSON.stringify(instructionTa)}) || {}).value || '').includes(${JSON.stringify(prefix)})`,
+    10_000,
+  );
   await fillTextarea(tauriPage, instructionTa, "");
   await tauriPage.getByText("Save instructions").click();
   await tauriPage.waitForFunction(`document.body.innerText.includes('Saved')`, 10_000);

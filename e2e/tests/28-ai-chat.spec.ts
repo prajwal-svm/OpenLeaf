@@ -76,6 +76,12 @@ test("choose the GLM-4.6 model in settings and persist it", async ({ tauriPage }
   await expandProviderCard(tauriPage);
   // The model select lives inside the provider card; the chat panel behind
   // the modal has its own provider/model menu, so never search page-wide.
+  // It renders only after the modal's async config fetch marks the provider
+  // Active, so wait for it instead of querying immediately.
+  await tauriPage.waitForFunction(
+    inProviderCard(`return !!card.querySelector('[role="combobox"]');`),
+    10_000,
+  );
   await tauriPage.evaluate(
     inProviderCard(`
       const combo = card.querySelector('[role="combobox"]');
