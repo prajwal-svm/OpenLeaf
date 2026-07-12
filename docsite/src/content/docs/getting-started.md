@@ -1,45 +1,52 @@
 ---
-title: "Getting started with OpenLeaf"
-description: "In about two minutes you'll have a project open, compiled, and exporting a PDF. Everything runs locally, so you don't need an account or an internet connection "
+title: "Getting started"
+description: "From install to your first compiled PDF in about two minutes: create a project from a template, write, compile, jump with SyncTeX, and export."
 ---
 
-In about two minutes you'll have a project open, compiled, and exporting a PDF. Everything runs locally, so you don't need an account or an internet connection to write or compile.
+In about two minutes you'll have a project open, compiled, and exported as a PDF. Everything runs locally, so you don't need an account or an internet connection to write or compile (only the very first compile fetches packages).
 
 ## 1. Install
 
-Download the app for your platform from the [latest release](https://github.com/prajwal-svm/OpenLeaf/releases/latest): a `.dmg` for macOS (Apple Silicon), a `.msi` or `-setup.exe` for Windows, or an `.AppImage`, `.deb`, or `.rpm` for Linux. Open it and you're ready. The builds aren't signed yet, so your OS warns on first launch; the [install guide](/OpenLeaf/install/#first-launch) has the one-time unlock for each platform.
-
-Prefer to build from source? See [Build from source](/OpenLeaf/install/#build-from-source) in the install guide.
-
-The first compile fetches LaTeX packages (a few hundred MB) and caches them, so every compile after that is fully offline.
+Download the app for your platform from the [latest release](https://github.com/prajwal-svm/OpenLeaf/releases/latest) and open it. The builds aren't signed yet, so your OS warns on first launch; the [install guide](/OpenLeaf/install/#first-launch) has the one-time unlock for each platform.
 
 ## 2. Create your first project
 
-1. On the Library home, click New from template.
-2. Pick a starter:
-   - Blank document: a minimal article.
-   - One-Page Resume: an ATS-safe single-page resume.
-   - IEEE Research Paper: a two-column conference paper with a `.bib`.
-3. Give it a name and open it.
+1. On the Library home screen, click **New project**.
+2. The template gallery opens. Browse by category, search, or filter by **ATS-friendly**. Try one of these to start:
+   - **Blank document**: a minimal article to start from scratch.
+   - **ATS Resume** or **Software Engineer Resume**: single-column resumes built to survive applicant tracking systems.
+   - **IEEE Research Paper**: a two-column conference paper with figures, tables, and a bibliography.
+3. Click your pick, give the project a name, choose a cover color, and hit **Create project**.
+
+The full catalog of 19 templates is on the [Templates](/OpenLeaf/templates/) page.
 
 ## 3. Write and compile
 
-Type in the editor on the left. Auto-compile runs a couple of seconds after you stop typing. Press ⌘↵ (Ctrl+Enter) to recompile immediately. The PDF on the right updates live, with zoom, fit-to-width, and page navigation.
+Type in the editor on the left. Press **⌘↵** (Ctrl+Enter on Windows/Linux) to compile; the PDF appears on the right with zoom, page navigation, and single or two-page layouts.
+
+Prefer compile-as-you-type? Open the command palette (**⌘K** / Ctrl+K) and run **Enable auto-compile**: from then on, a compile starts about 2.5 seconds after you stop typing.
+
+While you write, the editor is already helping: type `\` for LaTeX command completion, `/` for the slash insert menu (`/figure`, `/table`, `/section`, `/cite`, `/math` and more), and **Ctrl+Space** to trigger suggestions anywhere. See [Autocomplete & slash commands](/OpenLeaf/autocomplete/).
 
 ## 4. Jump between source and PDF (SyncTeX)
 
-Source to PDF: put your cursor somewhere and press ⌘⇧J (or click the arrow on the divider). The PDF scrolls to the matching spot and highlights it.
+- **Source to PDF:** put your cursor anywhere and press **⌘⇧J** (Ctrl+Shift+J). The PDF scrolls to the matching spot and flashes a highlight.
+- **PDF to source:** hold **⌘** (Ctrl) and click any word in the PDF. The editor jumps to that exact word, even across `\input` files.
 
-PDF to source: ⌘/Ctrl-click anywhere on the PDF to jump the cursor there in the editor.
+More in [SyncTeX](/OpenLeaf/synctex/).
 
 ## 5. Export
 
-Click the Download icon in the toolbar, then Download as PDF. The output is ATS-clean by default: real selectable text, embedded subset fonts. For Word/HTML/Markdown, install pandoc and use the same menu.
+Click the **Export** button (download icon) in the toolbar, then **Export as PDF**. The output is ATS-clean by default: real selectable text with embedded fonts. The same menu exports your full source as a `.zip`, and Word, HTML, Markdown, and plain text via pandoc (downloaded on demand the first time). Details in [Export formats](/OpenLeaf/export/).
 
 ## 6. Where your files live
 
-Every project is a plain folder under `~/.openleaf/projects/<id>/` containing your `.tex`, `.bib`, images, and a real `.git` repository. They're just files, so you can browse, copy, or back them up with any tool.
+Every project is a plain folder under `~/.openleaf/projects/` containing your `.tex`, `.bib`, images, and a real `.git` repository. They're just files: browse, copy, or back them up with any tool. See [Where your data lives](/OpenLeaf/where-your-data-lives/).
 
----
+## Keep going
 
-Next: the full [Features](/OpenLeaf/features/) list, the [AI Assistant](/OpenLeaf/ai-assistant/), or [GitHub Sync](/OpenLeaf/github-sync/).
+- **Cite something:** paste a DOI or paper title and get a `\cite` plus a clean BibTeX entry. [Citations](/OpenLeaf/citations/)
+- **Draw a figure:** the diagram composer generates editable TikZ from a visual canvas. [Figures & diagrams](/OpenLeaf/figures-diagrams/)
+- **Connect an AI:** bring a key from any of nine providers, or run local with Ollama, and let the assistant fix your LaTeX errors. [Set up AI](/OpenLeaf/ai-setup/)
+- **Check before you submit:** Preflight scores your PDF for resume parsers and screen readers. [Preflight](/OpenLeaf/preflight/)
+- **Back it up:** publish the project to GitHub in two clicks. [GitHub sync](/OpenLeaf/github-sync/)
