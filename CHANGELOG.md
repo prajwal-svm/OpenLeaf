@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Automatic Git commits: every successful compile snapshots the project, and
+  edits commit on their own after a short quiet period, under generated
+  "Update: `<files>`" messages. Automatic commits pause while the Source
+  Control panel is open, so manual staging is never disturbed.
+
 ## [0.2.3] - 2026-07-11
 
 ### Changed

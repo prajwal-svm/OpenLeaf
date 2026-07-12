@@ -230,6 +230,10 @@ export interface GitCommit {
 export const gitAutoCommit = (projectId: string, message: string) =>
   invoke<boolean>("git_auto_commit", { projectId, message });
 
+/** Commit all outstanding changes under a generated "Update: <files>" message. */
+export const gitAutoCommitUpdate = (projectId: string) =>
+  invoke<boolean>("git_auto_commit_update", { projectId });
+
 export const gitLog = (projectId: string) =>
   invoke<GitCommit[]>("git_log", { projectId });
 

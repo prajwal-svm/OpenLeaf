@@ -468,6 +468,7 @@ export function TopToolbar() {
           <Button
             variant="ghost"
             size="icon"
+            aria-label="History"
             className="text-muted-foreground hover:text-foreground"
             onClick={() => setHistoryOpen(true)}
           >

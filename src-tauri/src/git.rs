@@ -57,6 +57,48 @@ pub async fn git_auto_commit(project_id: String, message: String) -> Result<bool
     .map_err(|e| e.to_string())?
 }
 
+/// Build the auto-commit message from the changed paths: "Update: a.tex, b.bib",
+/// capped so a big import doesn't produce a novel of a subject line.
+fn update_message(paths: &[String]) -> String {
+    const MAX_LISTED: usize = 5;
+    let listed = paths
+        .iter()
+        .take(MAX_LISTED)
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join(", ");
+    if paths.len() > MAX_LISTED {
+        format!("Update: {listed} +{} more", paths.len() - MAX_LISTED)
+    } else {
+        format!("Update: {listed}")
+    }
+}
+
+/// Commit everything outstanding under a generated "Update: <files>" message.
+/// Returns false when the tree is clean.
+fn auto_commit_update_in(root: &PathBuf) -> Result<bool, String> {
+    let out = run_git(root, &["status", "--porcelain"])?;
+    let changed = parse_status_porcelain(&String::from_utf8_lossy(&out.stdout));
+    if changed.is_empty() {
+        return Ok(false);
+    }
+    let paths: Vec<String> = changed.into_iter().map(|c| c.path).collect();
+    let message = update_message(&paths);
+    run_git(root, &["add", "-A"])?;
+    let out = run_git(root, &["commit", "--quiet", "-m", &message])?;
+    Ok(out.status.success())
+}
+
+#[tauri::command]
+pub async fn git_auto_commit_update(project_id: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<bool, String> {
+        let root = ensure_repo(&project_id)?;
+        auto_commit_update_in(&root)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn git_log(project_id: String) -> Result<Vec<GitCommit>, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<Vec<GitCommit>, String> {
@@ -654,8 +696,8 @@ pub async fn git_show(project_id: String, rev: String, path: String) -> Result<S
 #[cfg(test)]
 mod tests {
     use super::{
-        commit_index, is_allowed_remote_url, parse_status_porcelain, run_git, sanitize_url, show,
-        stage, stage_all, unstage, unstage_all,
+        auto_commit_update_in, commit_index, is_allowed_remote_url, parse_status_porcelain,
+        run_git, sanitize_url, show, stage, stage_all, unstage, unstage_all, update_message,
     };
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -699,6 +741,37 @@ mod tests {
         let s = status(&r);
         assert!(!s[0].staged);
         assert_eq!(s[0].status, "?");
+    }
+
+    #[test]
+    fn update_message_lists_files_and_caps() {
+        let p = |s: &str| s.to_string();
+        assert_eq!(update_message(&[p("main.tex")]), "Update: main.tex");
+        assert_eq!(
+            update_message(&[p("a.tex"), p("b.bib")]),
+            "Update: a.tex, b.bib"
+        );
+        let many: Vec<String> = (0..7).map(|i| format!("f{i}.tex")).collect();
+        assert_eq!(
+            update_message(&many),
+            "Update: f0.tex, f1.tex, f2.tex, f3.tex, f4.tex +2 more"
+        );
+    }
+
+    #[test]
+    fn auto_commit_update_commits_everything_and_noops_when_clean() {
+        let r = temp_repo();
+        write(&r, "main.tex", "hello\n");
+        write(&r, "refs.bib", "@misc{x}\n");
+        assert!(auto_commit_update_in(&r).unwrap());
+        assert!(status(&r).is_empty());
+        let out = run_git(&r, &["log", "--format=%s", "-1"]).unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout).trim(),
+            "Update: main.tex, refs.bib"
+        );
+        // Clean tree: a second call is a no-op returning false.
+        assert!(!auto_commit_update_in(&r).unwrap());
     }
 
     #[test]

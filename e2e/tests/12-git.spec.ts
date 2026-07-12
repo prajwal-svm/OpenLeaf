@@ -36,6 +36,35 @@ test("git panel shows the GitHub onboarding gate when not connected", async ({ t
   await expect(tauriPage.getByText("Use a personal access token instead")).toBeVisible();
 });
 
+// Auto-commit: a successful compile snapshots the project into git history
+// under a generated "Update: <files>" message. No GitHub involved.
+test("a successful compile auto-commits an Update entry into history", async ({ tauriPage }) => {
+  await openProject(tauriPage, "E2E Doc");
+  await expect(tauriPage.locator(".cm-content")).toBeVisible({ timeout: 20_000 });
+  // Auto-commit is suspended while the Source Control panel is open (an
+  // earlier test may have left it active), so switch to another rail tab.
+  await openRailTab(tauriPage, "Source Tree");
+
+  await typeInEditorAfter(tauriPage, "here.", " autocommit");
+  await pressGlobal(tauriPage, "Enter", { meta: true });
+  await expect(tauriPage.getByTestId("compile-status")).toHaveAttribute("data-severity", "ok", {
+    timeout: 90_000,
+  });
+
+  // The commit lands asynchronously right after the compile, and the history
+  // modal loads on open - so poll by reopening it.
+  let seen = false;
+  for (let i = 0; i < 15 && !seen; i++) {
+    await tauriPage.click('[aria-label="History"]');
+    seen = await tauriPage.evaluate<boolean>(
+      `/Update:[^\\n]*main\\.tex/.test(document.body.innerText)`,
+    );
+    await tauriPage.getByText("Close", { exact: true }).click();
+    if (!seen) await new Promise((r) => setTimeout(r, 1000));
+  }
+  expect(seen).toBe(true);
+});
+
 // Full source-control flow: connect with a PAT, then stage -> diff -> commit.
 // Opt in with E2E_GITHUB_TOKEN=<pat>. Nothing is pushed.
 test("stage, diff, and commit with a connected account", async ({ tauriPage }) => {
@@ -45,16 +74,15 @@ test("stage, diff, and commit with a connected account", async ({ tauriPage }) =
 
   await ensureGithubConnected(tauriPage);
 
-  // Make a change and persist it (compile saves the active file).
+  // Make a change and let the autosave persist it. Don't compile here: a
+  // successful compile now auto-commits, which would leave nothing to stage.
   await typeInEditorAfter(tauriPage, "here.", " gitmarker");
-  await pressGlobal(tauriPage, "Enter", { meta: true });
-  await expect(tauriPage.getByTestId("compile-status")).toHaveAttribute("data-severity", "ok", {
-    timeout: 90_000,
-  });
 
   await openRailTab(tauriPage, "Git");
-  // Surface the fresh edit: the save-on-compile may still be landing and the
-  // panel refreshes on mount, not on file saves - refresh until it shows.
+  // Surface the fresh edit: the autosave may still be landing and the panel
+  // refreshes on mount, not on file saves - refresh until it shows. (While
+  // this panel is open, the debounced auto-commit is suspended, so the change
+  // stays uncommitted for us to stage.)
   for (let i = 0; i < 20; i++) {
     await tauriPage.click('[aria-label="Refresh"]');
     const ready = await tauriPage.evaluate<boolean>(
@@ -73,8 +101,8 @@ test("stage, diff, and commit with a connected account", async ({ tauriPage }) =
   // Stage all is hover-revealed (opacity-0): the plugin's click waits for
   // visibility and never fires - click the real button via the DOM instead.
   // Keep refreshing + staging until the STAGED section is actually visible -
-  // the commit button reads that React state, and both the save-on-compile
-  // and the panel refresh land asynchronously.
+  // the commit button reads that React state, and both the autosave and the
+  // panel refresh land asynchronously.
   let stagedVisible = false;
   for (let i = 0; i < 25 && !stagedVisible; i++) {
     await tauriPage.evaluate(

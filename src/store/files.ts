@@ -17,6 +17,7 @@ import {
   type FileEntry,
   type ProjectInfo,
 } from "@/lib/tauri";
+import { flushAutoCommit, scheduleAutoCommit } from "@/lib/auto-commit";
 import { logError } from "@/lib/log";
 import { notifyError } from "@/lib/toast";
 import { useDiffStore } from "@/store/diff";
@@ -110,8 +111,10 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
 
   openProject: async (id) => {
     const seq = ++openSeq;
-    // Drop any pending autosave and every buffer from the previous project so
-    // its dirty tabs can't be written into this project's directory.
+    // Land any pending auto-commit for the previous project, then drop pending
+    // autosaves and every buffer so its dirty tabs can't be written into this
+    // project's directory.
+    flushAutoCommit();
     cancelPendingAutosave();
     set({
       loading: true,
@@ -158,6 +161,7 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
   },
 
   closeProject: () => {
+    flushAutoCommit();
     cancelPendingAutosave();
     set({
       projectId: null,
@@ -286,6 +290,8 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
       if (cur.content !== written) return {};
       return { files: { ...s.files, [path]: { ...cur, dirty: false } } };
     });
+    // The write landed on disk: schedule the debounced auto-commit.
+    scheduleAutoCommit(projectId);
   },
 
   createFile: async (path, isDir) => {

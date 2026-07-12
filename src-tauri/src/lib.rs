@@ -132,6 +132,7 @@ pub fn run() {
             config::get_config,
             config::set_config,
             git::git_auto_commit,
+            git::git_auto_commit_update,
             git::git_log,
             git::git_restore,
             git::git_set_remote,

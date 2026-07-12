@@ -99,6 +99,12 @@ export const useCompileStore = create<CompileState>((set, get) => ({
       });
       // Tell a detached preview window (if open) to reload the fresh PDF.
       void import("@/lib/preview-window").then((m) => m.refreshPreviewWindow());
+      // A successful compile is the natural checkpoint: auto-commit the
+      // project (compiling already saved the active file first).
+      if (bytes && files.projectId) {
+        const pid = files.projectId;
+        void import("@/lib/auto-commit").then((m) => m.autoCommitNow(pid));
+      }
       return result;
     } catch (e) {
       if (!stale()) set({ status: "error", log: `Compile failed: ${String(e)}` });
