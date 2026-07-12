@@ -3,7 +3,7 @@ title: "Compiling"
 description: "The bundled Tectonic engine: one-key and auto-compile, live progress, the status chip, reading the logs, offline mode, and how packages are fetched and cached."
 ---
 
-OpenLeaf compiles with **Tectonic**, a modern XeTeX-based engine that ships inside the app. There is no TeX distribution to install and no build configuration: open a project, press compile, get a PDF. Output is Unicode-clean with embedded, subsetted fonts, which is exactly what ATS parsers and archives want.
+OpenLeaf compiles with **Tectonic**, an XeTeX-based engine that ships inside the app. There is no TeX distribution to install and no build configuration: open a project, press compile, get a PDF. Output is Unicode-clean with embedded, subsetted fonts, which is exactly what ATS parsers and archives want.
 
 ## Starting a compile
 

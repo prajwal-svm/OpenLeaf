@@ -58,7 +58,7 @@ grep -rn 'from "@/\|@tauri\|zustand' packages/*/src   # must return nothing
 Packages declare interfaces; the app implements them once, usually as a
 module-level adapter object closing over its stores. Four recurring shapes:
 
-**Host ports** — one `interface XHost` per package covering the services it
+**Host ports**: one `interface XHost` per package covering the services it
 needs. The app builds the adapter with imperative store reads:
 
 ```ts
@@ -77,18 +77,18 @@ Keeping app-only concerns inside the adapter also keeps dependencies out of
 packages: the AI-SDK `generateText` call for the diagram "Fix with AI" lives
 in the app adapter, so `@openleaf/diagram` has no `ai` dependency.
 
-**UI kits** — a React context (or prop) of structurally-typed components:
+**UI kits**: a React context (or prop) of structurally-typed components:
 `Button: ComponentType<{ variant?: …; onClick?: () => void }>`. The app passes
 its shadcn components through unchanged; structural subsets make that free.
 Kits also carry `toast` and a `useThemeMode()` hook.
 
-**Hook-shaped ports** — for packages that must *subscribe* to app state. The
+**Hook-shaped ports**: for packages that must *subscribe* to app state. The
 editor's `EditorHost` has hook members (`useActivePath()`, `useSettings()`)
 plus imperative twins (`getActivePath()`) for event listeners. Rules: the host
 object must be module-level (stable identity) and its `use*` members must call
 hooks unconditionally.
 
-**Module singletons** — for cross-cutting glue: `setPdfLogger(fn)`,
+**Module singletons**: for cross-cutting glue, `setPdfLogger(fn)`,
 `setSpellHost(host)`, `setBibKeysProvider(fn)` have no-op defaults and are
 installed by the app shim as an import side effect.
 
@@ -107,14 +107,14 @@ the preferred path.
 `@openleaf/registry` is how features plug into the app shell without the shell
 knowing them. Three contribution kinds:
 
-- **Rail tabs** (`registerRailTab`) — icon, section (`explore` / `review` /
+- **Rail tabs** (`registerRailTab`): icon, section (`explore` / `review` /
   `assist`, dividers drawn between non-empty sections), optional `when(ctx)`
   visibility, optional `useBadge()` hook (e.g. the Git change count), and the
   sidebar `panel` component.
-- **Commands** (`registerCommand`) — served to the command palette (Cmd+K,
+- **Commands** (`registerCommand`): served to the command palette (Cmd+K,
   grouped by `group`) and/or the omnibar (Cmd+P) via `surfaces`. Labels and
   icons may be functions of the context (e.g. "Switch to light theme").
-- **AI toolsets** (`registerAiToolset`) — a chat mode (`"chat"`, `"figure"`)
+- **AI toolsets** (`registerAiToolset`): a chat mode (`"chat"`, `"figure"`)
   mapped to a toolset factory; the chat panel looks up the active mode's
   toolset instead of hard-coding one.
 
@@ -126,7 +126,7 @@ Registration is **static**: `src/contributions/` registers every built-in
 before the shell mounts. `Rail`, `Sidebar`, `CommandPalette`, `SearchOmnibar`,
 and `ChatPanel` render only what is registered.
 
-To add a feature's tab or command, register it — no shell edits:
+To add a feature's tab or command, register it. No shell edits:
 
 ```ts
 // src/contributions/my-feature.tsx (called from src/contributions/index.ts)
@@ -157,7 +157,7 @@ places, and all three must stay in sync when a package is added:
 2. `vite.config.ts` → `resolve.alias` (`"@openleaf/x": …/packages/x/src`; string
    aliases prefix-match, so subpaths resolve for free).
 3. `vitest.config.ts` → the same `resolve.alias`, **plus** `test.include` must
-   cover `packages/**/*.test.ts` — otherwise moved tests silently drop out of
+   cover `packages/**/*.test.ts`. Otherwise moved tests silently drop out of
    the run.
 
 Also: the root `package.json` depends on each package via `"workspace:*"`, and
@@ -166,7 +166,7 @@ package sources for class names.
 
 Vite-only imports (`?worker&url` workers, CSS imports) work unchanged from
 package sources because the aliases point at source. Keep anything that drags
-in pdf.js out of barrels that node-environment tests import — that is why
+in pdf.js out of barrels that node-environment tests import: that is why
 `pdf-extract` and the preview package's viewer are reachable only where the
 DOM exists.
 
@@ -190,6 +190,6 @@ DOM exists.
 Tauri IPC client (`src/lib/tauri.ts`), the shadcn UI kit, layout/shell
 components, the port adapters and shims, `src/contributions/`, and
 feature glue that is store-coupled by nature (the preflight panel UI, the
-inline-AI editing plugin, code/hover intel — injected into the editor as
+inline-AI editing plugin, code/hover intel, injected into the editor as
 `extraExtensions`). The Rust side (`src-tauri/`) is a single crate and stays
 that way until backend-heavy work justifies a cargo workspace split.

@@ -5,7 +5,7 @@ description: "OpenLeaf is a free, local-first LaTeX editor and resume studio for
 
 OpenLeaf is a free, local-first LaTeX editor and resume studio for macOS, Windows, and Linux. It gives you the full writing experience of a cloud LaTeX service, the compiler included, on your own machine: no account, no subscription, no upload, no waiting on someone else's build queue.
 
-You write on the left, the PDF builds on the right, and everything in between, from citation lookups to accessibility checks to an AI assistant that can edit your files with your approval, is built in.
+You write on the left, the PDF builds on the right, and everything in between is built in: citation lookups, accessibility checks, even an AI assistant that can edit your files with your approval.
 
 ![OpenLeaf: the editor on the left, the compiled PDF on the right](/OpenLeaf/media/hero-editor.png)
 

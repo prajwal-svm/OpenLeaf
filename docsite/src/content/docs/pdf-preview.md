@@ -30,7 +30,7 @@ Pinch on a trackpad to zoom, exactly like a native PDF app, or hold Ctrl and scr
 
 ## Text is real
 
-Every page carries a selectable text layer: select and copy straight from the preview. Hyperlinks in the PDF are clickable and open in your system browser.
+Every page has a selectable text layer: select and copy straight from the preview. Hyperlinks in the PDF are clickable and open in your system browser.
 
 ## Jumping between source and PDF
 

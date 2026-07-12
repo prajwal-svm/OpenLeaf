@@ -3,7 +3,7 @@ title: "SyncTeX"
 description: "Bidirectional source-PDF navigation: jump from the cursor to the exact spot in the PDF, or Cmd/Ctrl-click a word in the PDF to land on it in the editor, across files."
 ---
 
-SyncTeX is the invisible thread between your LaTeX source and the typeset PDF. OpenLeaf compiles with SyncTeX data enabled on every build, so both directions of the jump are always one gesture away.
+SyncTeX is the link between your LaTeX source and the typeset PDF. OpenLeaf compiles with SyncTeX data enabled on every build, so both directions of the jump are always one gesture away.
 
 ![Cmd-click the PDF and land on the exact word in the source](/OpenLeaf/media/synctex.gif)
 

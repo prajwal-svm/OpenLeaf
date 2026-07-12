@@ -167,8 +167,8 @@ You can also drop a hand-drawn sketch into the project and ask the assistant to 
 
 Next to the compile button is an **Insert diagram** button (also in the omnibar) that opens a full-height composer with two ways to build a figure, and a live compiled preview on the right:
 
-- **Draw** — a visual editor (drag rectangles, circles, ellipses, diamonds, and text; connect them with arrows; style fill, border, and colors; snap to grid; undo/redo). It generates clean TikZ as you draw, so you get GUI speed with LaTeX-native fonts and vector output.
-- **Code** — a real LaTeX editor (syntax highlighting, gutter, TikZ snippet toolbar) for writing or fine-tuning TikZ by hand.
+- **Draw**: a visual editor (drag rectangles, circles, ellipses, diamonds, and text; connect them with arrows; style fill, border, and colors; snap to grid; undo/redo). It generates clean TikZ as you draw, so you get GUI speed with LaTeX-native fonts and vector output.
+- **Code**: a real LaTeX editor (syntax highlighting, gutter, TikZ snippet toolbar) for writing or fine-tuning TikZ by hand.
 
 Give the diagram a name, then insert it **as vector code** (TikZ straight into your document) or **as an image** (`\includegraphics` of a saved `figures/<name>.png`, with a PNG scale and transparent-background option). Either way the source is preserved as `figures/<name>.tikz`.
 

@@ -3,7 +3,7 @@ title: "Chat & tools"
 description: "An AI agent wired into your project: it reads files, edits with your approval, compiles, checks the log, and verifies the PDF. Every change shows a diff first."
 ---
 
-The chat panel (the sparkles tab in the left rail) is not a chatbot next to your editor; it's an agent inside it. Ask it to fix your LaTeX errors and it will compile, read the log, edit the file, recompile, and report back, pausing for your approval before touching anything.
+The chat panel (the sparkles tab in the left rail) is an agent inside your editor, not a chatbot bolted on next to it. Ask it to fix your LaTeX errors and it will compile, read the log, edit the file, recompile, and report back, pausing for your approval before touching anything.
 
 ![The assistant finds and fixes a LaTeX error](/OpenLeaf/media/ai-fix.gif)
 

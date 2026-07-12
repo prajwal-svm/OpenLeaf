@@ -5,7 +5,7 @@ description: "How OpenLeaf compares to Overleaf, VS Code with LaTeX Workshop, Te
 
 There are many ways to produce a LaTeX document. This page is an honest map of where OpenLeaf sits among them, what it does better, and what it deliberately does not try to be.
 
-The short version: OpenLeaf combines the polish of a cloud LaTeX service, the ownership of a desktop app, and capabilities none of the alternatives have in one place, like ATS and accessibility preflight, an approval-gated AI agent, DOI-to-`\cite` citation lookup, and a visual TikZ composer.
+The short version: OpenLeaf pairs the polish of a cloud LaTeX service with the ownership of a desktop app, and adds things none of the alternatives have in one place: ATS and accessibility preflight, an approval-gated AI agent, DOI-to-`\cite` citation lookup, and a visual TikZ composer.
 
 ## vs Overleaf
 
@@ -45,7 +45,7 @@ If you live in VS Code for code and want your thesis in the same keybindings wit
 
 TeXstudio and TeXmaker are capable, mature desktop editors. Like the VS Code route, they require you to install and maintain a TeX distribution separately, and their interaction model has aged: dialog-heavy configuration, no integrated version control, no AI, and no template gallery.
 
-OpenLeaf is what a desktop LaTeX editor looks like designed today: bundled compiler, a template gallery with 19 starting points, Git history built in, GitHub sync, citation lookup, code intelligence, and a modern, fast interface with light and dark themes.
+OpenLeaf is what a desktop LaTeX editor looks like designed today: bundled compiler, a template gallery with 19 starting points, Git history built in, GitHub sync, citation lookup, code intelligence, and a fast interface with light and dark themes.
 
 ## vs Word, Google Docs, and resume builders
 

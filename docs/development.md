@@ -26,7 +26,7 @@ localeaf/
 
 The frontend is a pnpm workspace: feature engines live in `packages/*` behind
 injected ports, and the app shell wires them together. Read
-[Frontend architecture](architecture.md) before touching `packages/` — it
+[Frontend architecture](architecture.md) before touching `packages/`: it
 covers the port pattern, the contribution registry, and the alias wiring.
 
 ## Prerequisites
