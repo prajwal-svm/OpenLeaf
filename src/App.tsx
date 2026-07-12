@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, type ReactNode } from "react";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { ThemeProvider } from "@/lib/theme";
 import { TopToolbar } from "@/components/layout/TopToolbar";
@@ -7,14 +7,9 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { SearchOmnibar } from "@/components/layout/SearchOmnibar";
 import { GlobalNewProject } from "@/components/library/GlobalNewProject";
-import { DiagramComposer } from "@/components/diagram/DiagramComposer";
-import { SettingsModal } from "@/components/layout/SettingsModal";
 import { Editor } from "@/components/editor/Editor";
 import { PreviewPane } from "@/components/preview/PreviewPane";
 import { Library } from "@/components/library/Library";
-import { WordCountModal } from "@/components/editor/WordCountModal";
-import { HistoryModal } from "@/components/editor/HistoryModal";
-import { HotkeysModal } from "@/components/editor/HotkeysModal";
 import { useFilesStore, useActiveContent } from "@/store/files";
 import { useCompileStore } from "@/store/compile";
 import { usePreflightStore } from "@/store/preflight";
@@ -28,6 +23,27 @@ import { listen } from "@tauri-apps/api/event";
 import { cn } from "@/lib/utils";
 import { ArrowRight } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
+
+// Heavy surfaces load on demand so cold start stays lean.
+const SettingsModal = lazy(() =>
+  import("@/components/layout/SettingsModal").then((m) => ({ default: m.SettingsModal })),
+);
+const DiagramComposer = lazy(() =>
+  import("@/components/diagram/DiagramComposer").then((m) => ({ default: m.DiagramComposer })),
+);
+const WordCountModal = lazy(() =>
+  import("@/components/editor/WordCountModal").then((m) => ({ default: m.WordCountModal })),
+);
+const HistoryModal = lazy(() =>
+  import("@/components/editor/HistoryModal").then((m) => ({ default: m.HistoryModal })),
+);
+const HotkeysModal = lazy(() =>
+  import("@/components/editor/HotkeysModal").then((m) => ({ default: m.HotkeysModal })),
+);
+
+function LazyModals({ children }: { children: ReactNode }) {
+  return <Suspense fallback={null}>{children}</Suspense>;
+}
 
 /** A clearly-grabbable, visible vertical resize handle (12px hit area).
  *  Optionally renders a control cluster at the top/bottom (Overleaf-style),
@@ -269,7 +285,9 @@ export default function App() {
         <CommandPalette />
         <SearchOmnibar />
         <GlobalNewProject />
-        <SettingsModal />
+        <LazyModals>
+          <SettingsModal />
+        </LazyModals>
       </ThemeProvider>
     );
   }
@@ -320,11 +338,13 @@ export default function App() {
         <CommandPalette />
         <SearchOmnibar />
         <GlobalNewProject />
-        <SettingsModal />
-        <WordCountModal />
-        <HistoryModal />
-        <HotkeysModal />
-        <DiagramComposer />
+        <LazyModals>
+          <SettingsModal />
+          <WordCountModal />
+          <HistoryModal />
+          <HotkeysModal />
+          <DiagramComposer />
+        </LazyModals>
       </div>
     </ThemeProvider>
   );

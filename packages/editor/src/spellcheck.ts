@@ -138,7 +138,8 @@ export function createSpellLinter() {
         return [];
       }
     },
-    { delay: 500, needsRefresh }
+    // Longer debounce on large docs reduces main-thread pressure while typing.
+    { delay: 700, needsRefresh }
   );
 }
 
@@ -215,7 +216,9 @@ export function createHarperLinter() {
         return [];
       }
     },
-    { delay: 450, needsRefresh }
+    // Idle-friendly: wait until typing pauses so Harper WASM does not fight
+    // CodeMirror for the main thread mid-keystroke.
+    { delay: 900, needsRefresh }
   );
 }
 

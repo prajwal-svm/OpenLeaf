@@ -44,13 +44,19 @@ function RailTabButton({
   return (
     <Tooltip label={tab.label} side="right">
       <button
+        type="button"
         aria-label={tab.label}
+        aria-current={active ? "page" : undefined}
         onClick={onSelect}
         className={cn("relative", railBtn(active))}
       >
-        <Icon className="size-5" />
+        <Icon className="size-5" aria-hidden />
         {badge > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white ring-2 ring-muted/30">
+          <span
+            role="status"
+            aria-label={`${badge} pending`}
+            className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white ring-2 ring-muted/30"
+          >
             {badge > 99 ? "99+" : badge}
           </span>
         )}

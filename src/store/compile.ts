@@ -18,8 +18,22 @@ let rerunQueued = false;
 
 export type CompileStatus = "idle" | "compiling" | "success" | "error";
 
+/** User-facing phase while status === "compiling" (package download vs build). */
+export type CompilePhase = "idle" | "saving" | "downloading" | "building";
+
+function phaseFromLogChunk(chunk: string, prev: CompilePhase): CompilePhase {
+  // Tectonic talks about downloading/fetching packages on first use of a crate.
+  if (/download|fetching|connecting to|resolving/i.test(chunk)) return "downloading";
+  if (/running|xetex|lualatex|writing|synctex/i.test(chunk) && prev === "downloading") {
+    return "building";
+  }
+  return prev === "idle" || prev === "saving" ? "building" : prev;
+}
+
 interface CompileState {
   status: CompileStatus;
+  /** Finer-grained status for the UI while compiling. */
+  phase: CompilePhase;
   log: string;
   errors: CompileError[];
   pdfBytes: Uint8Array | null;
@@ -34,6 +48,7 @@ interface CompileState {
 
 export const useCompileStore = create<CompileState>((set, get) => ({
   status: "idle",
+  phase: "idle",
   log: "",
   errors: [],
   pdfBytes: null,
@@ -45,6 +60,7 @@ export const useCompileStore = create<CompileState>((set, get) => ({
     rerunQueued = false;
     set({
       status: "idle",
+      phase: "idle",
       log: "",
       errors: [],
       pdfBytes: null,
@@ -78,19 +94,24 @@ export const useCompileStore = create<CompileState>((set, get) => ({
     // (project switched, or a newer compile started).
     const stale = () => seq !== compileSeq || useFilesStore.getState().projectId !== files.projectId;
 
-    set({ status: "compiling", log: "", errors: [] });
+    set({ status: "compiling", phase: "building", log: "", errors: [] });
     const unlisten = await listen<string>("compile:log", (e) => {
       if (seq !== compileSeq) return; // ignore log chunks from a superseded compile
-      set((s) => ({ log: s.log + e.payload }));
+      set((s) => ({
+        log: s.log + e.payload,
+        phase: phaseFromLogChunk(e.payload, s.phase),
+      }));
     });
     try {
       const result = await compileProject(projectId, mainDoc, offline);
-      const bytes = result.has_pdf
-        ? new Uint8Array(await readCompiledPdf(projectId))
-        : null;
+      // Wrap the IPC ArrayBuffer as a view (no copy of the payload bytes).
+      const buf = result.has_pdf ? await readCompiledPdf(projectId) : null;
+      const bytes = buf ? new Uint8Array(buf) : null;
       if (stale()) return result;
+      // Drop the previous PDF buffer so GC can reclaim multi-MB documents.
       set({
         status: bytes ? "success" : "error",
+        phase: "idle",
         pdfBytes: bytes,
         errors: result.errors,
         log: result.log,
@@ -107,7 +128,7 @@ export const useCompileStore = create<CompileState>((set, get) => ({
       }
       return result;
     } catch (e) {
-      if (!stale()) set({ status: "error", log: `Compile failed: ${String(e)}` });
+      if (!stale()) set({ status: "error", phase: "idle", log: `Compile failed: ${String(e)}` });
       void import("@/lib/log").then(({ logError }) => logError("compile", e));
       return undefined;
     } finally {

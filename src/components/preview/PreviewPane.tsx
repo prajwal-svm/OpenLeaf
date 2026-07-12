@@ -18,6 +18,7 @@ const MAX_SCALE = 4;
 
 export function PreviewPane() {
   const status = useCompileStore((s) => s.status);
+  const phase = useCompileStore((s) => s.phase);
   const pdfBytes = useCompileStore((s) => s.pdfBytes);
   const recompile = useCompileStore((s) => s.recompile);
   const errors = useCompileStore((s) => s.errors);
@@ -453,7 +454,10 @@ export function PreviewPane() {
                 Compile failed. Open the <strong>Logs</strong> tab to see what went wrong.
               </p>
             ) : compiling ? (
-              <CompileProgress estimateMs={compileTimeMs ?? 2500} />
+              <CompileProgress
+                estimateMs={compileTimeMs ?? 2500}
+                phase={phase}
+              />
             ) : (
               <div className="space-y-2">
                 <p className="mx-auto max-w-xs text-xs">
@@ -522,7 +526,13 @@ export function PreviewPane() {
 // Tectonic does not stream real progress, so we show a reassuring estimate that
 // eases toward ~95% over the expected duration (last compile time). The PDF
 // appearing is the real "done" signal, which replaces this view.
-function CompileProgress({ estimateMs }: { estimateMs: number }) {
+function CompileProgress({
+  estimateMs,
+  phase,
+}: {
+  estimateMs: number;
+  phase?: "idle" | "saving" | "downloading" | "building";
+}) {
   const [pct, setPct] = useState(0);
   useEffect(() => {
     const start = performance.now();
@@ -536,10 +546,15 @@ function CompileProgress({ estimateMs }: { estimateMs: number }) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [estimateMs]);
+  const label =
+    phase === "downloading"
+      ? "Downloading LaTeX packages (first-time only)…"
+      : "Compiling your document…";
   return (
-    <div className="w-52 space-y-2">
+    <div className="w-64 space-y-2" role="status" aria-live="polite">
       <p className="text-sm">
-        Compiling your document… <span className="tabular-nums font-medium">{Math.round(pct)}%</span>
+        {label}{" "}
+        <span className="tabular-nums font-medium">{Math.round(pct)}%</span>
       </p>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
         {/* Driven by rAF, so no CSS transition (a transition on the same
