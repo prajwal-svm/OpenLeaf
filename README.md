@@ -111,7 +111,7 @@ You can assemble most of these features yourself with VS Code extensions, Git, C
 
 **Every compile becomes a Git commit.** Undo a paragraph from yesterday. Compare two versions side by side. Branch your resume before every interview. Push it to GitHub with one click. No plugin, no setup, no `resume_final_v3_FINAL.tex`.
 
-This is OpenLeaf's quiet superpower. Every project is a real Git repo on your disk: the app commits your work automatically (after every successful compile, and shortly after you stop editing) and gives you history, diffs, and one-click restore right in the UI. And because it's real Git, `git log` and `git blame` work from a terminal too.
+This is OpenLeaf's superpower. Every project is a real Git repo on your disk: the app commits your work automatically (after every successful compile, and shortly after you stop editing) and gives you history, diffs, and one-click restore right in the UI. And because it's real Git, `git log` and `git blame` work from a terminal too.
 
 <div align="center">
 <img src="media/git-diff.png" alt="Side-by-side diff of a past version" width="85%" />
@@ -123,12 +123,26 @@ This is OpenLeaf's quiet superpower. Every project is a real Git repo on your di
 
 <br/>
 
+## Philosophy
+
+> **Documents should outlive services.**
+>
+> Your thesis shouldn't disappear because a company shuts down.
+>
+> Your resume shouldn't require a subscription.
+>
+> Your research shouldn't depend on an internet connection.
+>
+> Your files belong to you.
+
+<br/>
+
 ## How it compares
 
 OpenLeaf sits where four product categories overlap: LaTeX editors, cloud writing platforms, resume builders, and AI copilots. Here's the honest matrix.
 
-| | OpenLeaf | [Overleaf](https://www.overleaf.com) | TeXstudio / TeXmaker | VS Code + LaTeX Workshop | Typst (web) | Word / Google Docs | Resume builders (Zety · Rezi · Novoresume · Enhancv) |
-|---|---|---|---|---|---|---|---|
+| | &emsp;&emsp;OpenLeaf&emsp;&emsp; | &emsp;&emsp;Overleaf&emsp;&emsp; | &emsp;TeXstudio / TeXmaker&emsp; | &emsp;VS Code + LaTeX Workshop&emsp; | &emsp;&emsp;Typst (web)&emsp;&emsp; | &emsp;Word / Google Docs&emsp; | &emsp;Resume builders (Zety · Rezi · Novoresume · Enhancv)&emsp; |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | Price | Free, open source | Free tier; subscription for full history, sync, AI | Free | Free (AI needs paid Copilot) | Free tier; subscription for teams | Subscription (Word) / free (Docs) | Subscription; downloads often paywalled |
 | Real LaTeX output | Yes | Yes | Yes | Yes | No (its own markup) | No | No |
 | Works fully offline | Yes | No | Yes | Yes | Partly (CLI only) | Partly | No |
@@ -172,7 +186,7 @@ Version-control your career. One repo, every variant of you.
 
 The same engine that builds your resume handles serious academic work: papers, theses, CVs, books, articles, and grant proposals.
 
-It handles multi-file projects, `\input` trees, `.bib` bibliographies, figures, and cross-references, with SyncTeX keeping the source and PDF in lockstep.
+Multi-file projects, `\input` trees, `.bib` bibliographies, figures, and cross-references all work, with SyncTeX keeping the source and PDF in lockstep.
 
 <br/>
 
@@ -191,7 +205,7 @@ Open the Preflight panel and it scores your document out of 100 for the two audi
 <img src="media/preflight-ats.png" alt="Preflight scores a resume for ATS parsers and screen readers" width="85%" />
 </div>
 
-The full breakdown of every check is in [Preflight in the docs](https://prajwal-svm.github.io/OpenLeaf/preflight/).
+Every check is documented in [the Preflight guide](https://prajwal-svm.github.io/OpenLeaf/preflight/).
 
 <br/>
 
@@ -295,20 +309,6 @@ The full list. Everything here runs on your machine. For the detailed tour, see 
 - Command palette (`⌘K`) to fuzzy-search every action
 - In-app version display and update checker
 - Full offline mode, no account, no telemetry
-
-<br/>
-
-## Philosophy
-
-> **Documents should outlive services.**
->
-> Your thesis shouldn't disappear because a company shuts down.
->
-> Your resume shouldn't require a subscription.
->
-> Your research shouldn't depend on an internet connection.
->
-> Your files belong to you.
 
 <br/>
 
