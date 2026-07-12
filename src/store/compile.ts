@@ -14,6 +14,7 @@ import { notifyError } from "@/lib/toast";
 // switched (or a newer compile started) can detect it is stale and not overwrite
 // the current preview.
 let compileSeq = 0;
+let rerunQueued = false;
 
 export type CompileStatus = "idle" | "compiling" | "success" | "error";
 
@@ -40,7 +41,8 @@ export const useCompileStore = create<CompileState>((set, get) => ({
   compileTimeMs: null,
   autoCompile: false,
   setAutoCompile: (v) => set({ autoCompile: v }),
-  reset: () =>
+  reset: () => {
+    rerunQueued = false;
     set({
       status: "idle",
       log: "",
@@ -48,11 +50,17 @@ export const useCompileStore = create<CompileState>((set, get) => ({
       pdfBytes: null,
       lastCompiledAt: null,
       compileTimeMs: null,
-    }),
+    });
+  },
   recompile: async () => {
-    // Don't start a second compile while one is running (double Cmd+Enter, or
-    // the auto-compile timer racing a manual compile). They share one build dir.
-    if (get().status === "compiling") return undefined;
+    // Compiles share one build dir, so never run two at once. A request made
+    // mid-compile queues exactly one rerun so a manual Cmd+Enter during the
+    // on-open auto-compile still compiles the latest edits instead of being
+    // silently dropped.
+    if (get().status === "compiling") {
+      rerunQueued = true;
+      return undefined;
+    }
 
     const files = useFilesStore.getState();
     try {
@@ -98,6 +106,10 @@ export const useCompileStore = create<CompileState>((set, get) => ({
       return undefined;
     } finally {
       unlisten();
+      if (rerunQueued) {
+        rerunQueued = false;
+        if (!stale()) void get().recompile();
+      }
     }
   },
 }));
