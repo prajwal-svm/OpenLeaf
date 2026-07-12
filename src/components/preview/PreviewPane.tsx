@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Columns2, Contrast, FileText, Maximize, Minimize, Minus, PanelTopClose, PanelTopOpen, Play, Plus, RectangleVertical, Save, SquareArrowOutUpRight, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Columns2, Contrast, FileText, Maximize, Minimize, PanelTopClose, PanelTopOpen, Play, RectangleVertical, Save, SquareArrowOutUpRight, X, XCircle, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { PdfViewer, type PdfViewerHandle, type PdfLayout } from "@/components/pdf/PdfViewer";
@@ -321,7 +321,7 @@ export function PreviewPane() {
             )}
             <Tooltip label="Zoom out">
               <Button variant="ghost" size="icon" className="size-7" onClick={() => setScale((s) => Math.max(MIN_SCALE, s - 0.2))} aria-label="Zoom out">
-                <Minus className="size-3.5" />
+                <ZoomOut className="size-3.5" />
               </Button>
             </Tooltip>
             <span className="w-11 text-center text-xs tabular-nums text-muted-foreground">
@@ -329,7 +329,7 @@ export function PreviewPane() {
             </span>
             <Tooltip label="Zoom in">
               <Button variant="ghost" size="icon" className="size-7" onClick={() => setScale((s) => Math.min(MAX_SCALE, s + 0.2))} aria-label="Zoom in">
-                <Plus className="size-3.5" />
+                <ZoomIn className="size-3.5" />
               </Button>
             </Tooltip>
             <Tooltip label={isImage ? "Save image to project" : "Save PDF to project"}>
