@@ -23,6 +23,7 @@ import { listen } from "@tauri-apps/api/event";
 import { cn } from "@/lib/utils";
 import { ArrowRight } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
+import { ExternalToolApprovals } from "@/components/ai/ExternalToolApprovals";
 
 // Heavy surfaces load on demand so cold start stays lean.
 const SettingsModal = lazy(() =>
@@ -153,6 +154,16 @@ export default function App() {
       void openUpdateWindow({ manual: true });
     });
     return () => void unlisten.then((off) => off());
+  }, []);
+
+  // MCP bridge: register tools and handle tools/call forwarded from Rust.
+  useEffect(() => {
+    if (!isTauri()) return;
+    let cleanup: (() => void) | undefined;
+    void import("@/lib/mcp-bridge").then(async (m) => {
+      cleanup = await m.startMcpBridge();
+    });
+    return () => cleanup?.();
   }, []);
 
   // Apply cosmetic settings (fonts, sizes, accent color) to the document.
@@ -292,6 +303,7 @@ export default function App() {
         <CommandPalette />
         <SearchOmnibar />
         <GlobalNewProject />
+        <ExternalToolApprovals />
         <LazyModals>
           <SettingsModal />
         </LazyModals>
@@ -345,6 +357,7 @@ export default function App() {
         <CommandPalette />
         <SearchOmnibar />
         <GlobalNewProject />
+        <ExternalToolApprovals />
         <LazyModals>
           <SettingsModal />
           <WordCountModal />
