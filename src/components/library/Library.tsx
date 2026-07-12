@@ -31,6 +31,7 @@ import { useFilesStore } from "@/store/files";
 import { useSettingsStore } from "@/store/settings";
 import { useTheme } from "@/lib/theme";
 import { cn, isMac } from "@/lib/utils";
+import { cancelAutoCommit } from "@/lib/auto-commit";
 import { deleteProject, duplicateProject, readCompiledPdf } from "@/lib/tauri";
 import { pdfPageToPng } from "@/lib/pdf-image";
 
@@ -38,6 +39,7 @@ const thumbCache = new Map<string, string | null>();
 
 export function Library() {
   const projects = useFilesStore((s) => s.projects);
+  const projectsLoaded = useFilesStore((s) => s.projectsLoaded);
   const refreshProjects = useFilesStore((s) => s.refreshProjects);
   const openProject = useFilesStore((s) => s.openProject);
   const favs = useFavoritesStore((s) => s.favs);
@@ -177,6 +179,9 @@ export function Library() {
       <div className="relative z-10 flex-1 overflow-auto p-8">
         <div className="mx-auto max-w-4xl">
           {projects.length === 0 ? (
+            // Until the first listProjects resolves we don't know whether the
+            // library is empty, so don't flash the first-run welcome.
+            projectsLoaded ? (
             <Empty className="min-h-[60vh] py-10">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -198,6 +203,7 @@ export function Library() {
                 </Button>
               </EmptyContent>
             </Empty>
+            ) : null
           ) : (
           onlyFavs && visibleProjects.length === 0 ? (
             <p className="py-16 text-center text-sm text-muted-foreground">
@@ -258,6 +264,7 @@ export function Library() {
                     onClick={async () => {
                       if (!window.confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
                       try {
+                        cancelAutoCommit(p.id);
                         await deleteProject(p.id);
                         await refreshProjects();
                         toast.success(`Deleted "${p.name}".`);

@@ -92,6 +92,14 @@ fn auto_commit_update_in(root: &PathBuf) -> Result<bool, String> {
 #[tauri::command]
 pub async fn git_auto_commit_update(project_id: String) -> Result<bool, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<bool, String> {
+        // A background convenience must never resurrect a deleted project:
+        // project_dir() creates missing dirs, so check existence first and
+        // treat a gone project as a silent no-op (a debounced commit can
+        // legitimately fire after the user deleted the project).
+        paths::validate_project_id(&project_id)?;
+        if !paths::projects_root()?.join(&project_id).is_dir() {
+            return Ok(false);
+        }
         let root = ensure_repo(&project_id)?;
         auto_commit_update_in(&root)
     })

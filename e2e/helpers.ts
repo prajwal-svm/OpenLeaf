@@ -26,8 +26,15 @@ export async function pressGlobal(
 }
 
 /** Open the template gallery from wherever the library currently is
- *  (first-run welcome button, or the header button once projects exist). */
+ *  (first-run welcome button, or the header button once projects exist).
+ *  The fixture reloads the SPA before each test, so wait for the library to
+ *  finish loading projects (one of the two buttons exists only after that)
+ *  before deciding which button to click - probing earlier races the load. */
 export async function openGallery(page: Page) {
+  await page.waitForFunction(
+    `!!document.querySelector('[data-testid="create-first-project"], [data-testid="new-project"]')`,
+    15_000,
+  );
   const hasWelcome = await page.evaluate<boolean>(
     `!!document.querySelector('[data-testid="create-first-project"]')`,
   );

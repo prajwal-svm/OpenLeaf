@@ -43,6 +43,8 @@ interface FilesStore {
   tabOrder: Record<string, number>;
   activePath: string | null;
   projects: ProjectInfo[];
+  /** True once the first listProjects has resolved; gates empty-state UI. */
+  projectsLoaded: boolean;
   loading: boolean;
   docVersion: number;
 
@@ -101,12 +103,13 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
   tabOrder: {},
   activePath: null,
   projects: [],
+  projectsLoaded: false,
   loading: false,
   docVersion: 0,
 
   refreshProjects: async () => {
     const projects = await listProjects();
-    set({ projects });
+    set({ projects, projectsLoaded: true });
   },
 
   openProject: async (id) => {

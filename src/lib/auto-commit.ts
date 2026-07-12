@@ -35,6 +35,14 @@ export function scheduleAutoCommit(projectId: string) {
   }, IDLE_COMMIT_MS);
 }
 
+/** Drop the pending debounced commit for a deleted project. */
+export function cancelAutoCommit(projectId: string) {
+  if (pendingProjectId !== projectId) return;
+  if (timer) clearTimeout(timer);
+  timer = null;
+  pendingProjectId = null;
+}
+
 /** Commit pending debounced work now (called before switching projects). */
 export function flushAutoCommit() {
   if (!timer) return;
