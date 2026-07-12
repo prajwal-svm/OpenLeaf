@@ -13,7 +13,6 @@
 [![CI](https://github.com/prajwal-svm/OpenLeaf/actions/workflows/ci.yml/badge.svg)](https://github.com/prajwal-svm/OpenLeaf/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-22c55e.svg)](LICENSE)
 [![macOS · Windows · Linux](https://img.shields.io/badge/macOS%20·%20Windows%20·%20Linux-blue)](https://github.com/prajwal-svm/OpenLeaf/releases/latest)
-[![Tauri 2](https://img.shields.io/badge/built%20with-Tauri%202-f97316)]()
 [![Stars](https://img.shields.io/github/stars/prajwal-svm/OpenLeaf?style=social)](https://github.com/prajwal-svm/OpenLeaf)
 
 </div>
