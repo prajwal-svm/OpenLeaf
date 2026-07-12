@@ -81,6 +81,15 @@ export default defineConfig({
           ],
         },
         {
+          label: "AI assistant",
+          items: [
+            { label: "Set up AI", slug: "ai-setup" },
+            { label: "Chat & tools", slug: "ai-chat" },
+            { label: "Inline AI edits", slug: "ai-inline-edit" },
+            { label: "Draw figures with AI", slug: "ai-figures" },
+          ],
+        },
+        {
           label: "Using OpenLeaf",
           items: [
             { label: "Features", slug: "features" },
