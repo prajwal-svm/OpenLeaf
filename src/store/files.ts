@@ -457,3 +457,25 @@ export function useActiveContent(): string {
     s.activePath ? s.files[s.activePath]?.content ?? "" : ""
   );
 }
+
+// Flush the debounced autosave immediately when the page is going away, so an
+// edit made within the debounce window of a reload or quit is not lost.
+function flushPendingSaves() {
+  if (autosaveTimer) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+  const paths = [...pendingSaves];
+  pendingSaves.clear();
+  for (const p of paths) {
+    useFilesStore
+      .getState()
+      .saveFile(p)
+      .catch((e) => notifyError("autosave", e));
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", flushPendingSaves);
+  window.addEventListener("beforeunload", flushPendingSaves);
+}
