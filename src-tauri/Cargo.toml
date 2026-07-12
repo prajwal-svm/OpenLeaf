@@ -40,6 +40,7 @@ futures-util = "0.3"
 # directly from the frontend; only the OAuth endpoints run here. Commands are
 # async + single-shot so they never block the webview thread.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

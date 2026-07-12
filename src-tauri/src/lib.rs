@@ -9,6 +9,8 @@ mod menu;
 mod ollama;
 mod paths;
 mod project;
+mod sandbox;
+mod secrets;
 mod state;
 mod synctex;
 mod templates;

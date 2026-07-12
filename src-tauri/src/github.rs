@@ -244,6 +244,7 @@ pub async fn gh_set_token(token: String) -> Result<GitHubUser, String> {
     let mut cfg = config::read_config()?;
     cfg.github_token = token;
     cfg.github_user = user.login.clone();
+    // write_config migrates the token into the OS keychain when available.
     config::write_config(&cfg)?;
     Ok(user)
 }
@@ -254,6 +255,8 @@ pub fn gh_clear_token() -> Result<(), String> {
     let mut cfg = config::read_config()?;
     cfg.github_token = String::new();
     cfg.github_user = String::new();
+    // Also wipe the keychain entry so a reconnect starts clean.
+    let _ = crate::secrets::set_secret(crate::secrets::github_token_account(), "");
     config::write_config(&cfg)
 }
 

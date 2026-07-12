@@ -1,7 +1,12 @@
 use serde::{Deserialize, Serialize};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use crate::paths;
+use crate::sandbox::{is_root_delete, resolve};
+
+/// Public path resolver (sandbox). Re-exported so call sites keep importing
+/// `crate::project::resolve_in_project`.
+pub use crate::sandbox::resolve_in_project;
 
 const DEFAULT_MAIN_TEX: &str = "\\documentclass[11pt]{article}\n\
 \\usepackage[T1]{fontenc}\n\
@@ -66,62 +71,6 @@ pub struct ProjectInfo {
     pub updated_at: f64,
     /// Book-cover color (hex), or empty if unset (UI falls back to its default).
     pub color: String,
-}
-
-/// Resolve a project-relative path, rejecting traversal escapes.
-fn resolve(project_id: &str, rel: &str) -> Result<PathBuf, String> {
-    let root = paths::project_dir(project_id)?;
-    resolve_within(&root, rel)
-}
-
-/// Public resolver for other modules (e.g. compile/export) so a user-supplied
-/// `main_doc` can't escape the project via an absolute path or `..`.
-pub fn resolve_in_project(project_id: &str, rel: &str) -> Result<PathBuf, String> {
-    resolve(project_id, rel)
-}
-
-/// Join `rel` onto `root`, rejecting anything that would escape `root`.
-///
-/// Guards against three escape vectors:
-///   1. Absolute paths (`/etc/passwd`) - `Path::join` would discard `root`.
-///   2. `..` traversal and drive prefixes (`C:\`).
-///   3. Symlinks inside the project pointing outside - the resolved real path
-///      (or its nearest existing ancestor, for not-yet-created files) must stay
-///      within `root`.
-fn resolve_within(root: &Path, rel: &str) -> Result<PathBuf, String> {
-    let rel_path = Path::new(rel);
-    if rel_path.is_absolute() {
-        return Err(format!("illegal path: {rel}"));
-    }
-    if rel_path.components().any(|c| {
-        matches!(
-            c,
-            Component::ParentDir | Component::RootDir | Component::Prefix(_)
-        )
-    }) {
-        return Err(format!("illegal path: {rel}"));
-    }
-    let joined = root.join(rel_path);
-    let real_root = root.canonicalize().map_err(|e| e.to_string())?;
-    if let Some(anchor) = nearest_existing(&joined) {
-        let real = anchor.canonicalize().map_err(|e| e.to_string())?;
-        if !real.starts_with(&real_root) {
-            return Err(format!("illegal path: {rel}"));
-        }
-    }
-    Ok(joined)
-}
-
-/// The deepest ancestor of `path` (including itself) that exists on disk.
-fn nearest_existing(path: &Path) -> Option<PathBuf> {
-    let mut cur = Some(path);
-    while let Some(p) = cur {
-        if p.exists() {
-            return Some(p.to_path_buf());
-        }
-        cur = p.parent();
-    }
-    None
 }
 
 fn meta_path(project_id: &str) -> Result<PathBuf, String> {
@@ -242,28 +191,6 @@ pub fn create_file(project_id: String, path: String, is_dir: bool) -> Result<(),
             return Err(format!("{path} already exists"));
         }
         std::fs::write(&p, "").map_err(|e| e.to_string())
-    }
-}
-
-/// Whether deleting `rel` within `root` would target the project root itself.
-///
-/// The string guard (`""`, `"."`) is not enough: `"./"`, `"././"` and similar
-/// pass `resolve_within` (it accepts `Component::CurDir`) and resolve back to
-/// the project root, so a naive `remove_dir_all` would wipe the whole project.
-/// We compare the RESOLVED path against the project root (canonicalized when
-/// possible, falling back to a direct path compare).
-fn is_root_delete(root: &Path, rel: &str) -> bool {
-    if rel.is_empty() || rel == "." {
-        return true;
-    }
-    let p = match resolve_within(root, rel) {
-        Ok(p) => p,
-        // A path that fails to resolve is refused elsewhere; not a root delete.
-        Err(_) => return false,
-    };
-    match (p.canonicalize(), root.canonicalize()) {
-        (Ok(a), Ok(b)) => a == b,
-        _ => p == root,
     }
 }
 
@@ -616,7 +543,11 @@ fn guard_export_dest(dest: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn export_pdf(project_id: String, dest: String) -> Result<(), String> {
+pub fn export_pdf(
+    project_id: String,
+    dest: String,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<(), String> {
     guard_export_dest(&dest)?;
     let build = paths::build_dir(&project_id)?;
     let pdf = build.join(format!("{}.pdf", paths::ENTRY_STEM));
@@ -624,6 +555,10 @@ pub fn export_pdf(project_id: String, dest: String) -> Result<(), String> {
         return Err("No compiled PDF found - recompile first.".into());
     }
     std::fs::copy(&pdf, &dest).map_err(|e| format!("failed to write PDF: {e}"))?;
+    // Allow reveal_in_dir for this user-chosen export path.
+    if let Ok(canon) = std::path::Path::new(&dest).canonicalize() {
+        state.reveal_allowlist.blocking_lock().insert(canon);
+    }
 
     // Record in export history (keep the most recent 50).
     let mut meta = read_meta(&project_id)?;
@@ -1243,67 +1178,4 @@ pub async fn delete_project(project_id: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn temp_root() -> PathBuf {
-        // A process-wide counter guarantees uniqueness even when tests run in
-        // parallel (a plain timestamp can collide within the same nanosecond).
-        use std::sync::atomic::{AtomicU64, Ordering};
-        static COUNTER: AtomicU64 = AtomicU64::new(0);
-        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let base = std::env::temp_dir().join(format!("openleaf-test-{}-{n}", std::process::id()));
-        std::fs::create_dir_all(&base).unwrap();
-        base
-    }
-
-    #[test]
-    fn rejects_absolute_paths() {
-        let root = temp_root();
-        assert!(resolve_within(&root, "/etc/passwd").is_err());
-        std::fs::remove_dir_all(&root).ok();
-    }
-
-    #[test]
-    fn rejects_parent_traversal() {
-        let root = temp_root();
-        assert!(resolve_within(&root, "../secret").is_err());
-        assert!(resolve_within(&root, "a/../../secret").is_err());
-        std::fs::remove_dir_all(&root).ok();
-    }
-
-    #[test]
-    fn allows_normal_relative_paths() {
-        let root = temp_root();
-        let p = resolve_within(&root, "sub/dir/file.tex").unwrap();
-        assert!(p.starts_with(&root));
-        std::fs::remove_dir_all(&root).ok();
-    }
-
-    #[test]
-    fn refuses_delete_of_project_root() {
-        let root = temp_root();
-        // The plain string guard plus the resolved-root comparison must catch
-        // every spelling that resolves back to the project root.
-        assert!(is_root_delete(&root, ""));
-        assert!(is_root_delete(&root, "."));
-        assert!(is_root_delete(&root, "./"));
-        assert!(is_root_delete(&root, "././"));
-        // A real relative file is not the root and must be deletable.
-        assert!(!is_root_delete(&root, "main.tex"));
-        std::fs::remove_dir_all(&root).ok();
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn rejects_symlink_escape() {
-        let root = temp_root();
-        let outside = temp_root();
-        std::os::unix::fs::symlink(&outside, root.join("escape")).unwrap();
-        // Writing "through" the symlink would land outside the project root.
-        assert!(resolve_within(&root, "escape/x.tex").is_err());
-        std::fs::remove_dir_all(&outside).ok();
-        std::fs::remove_dir_all(&root).ok();
-    }
-}
+// Path-sandbox unit tests live in `sandbox.rs`.

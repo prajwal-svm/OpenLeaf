@@ -19,10 +19,39 @@ pub fn app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+/// Whether `path` may be revealed in the OS file manager.
+/// Allowed: anything under the OpenLeaf data root, or a path the user just
+/// exported via a native save dialog (short-lived allowlist).
+fn assert_revealable(
+    canonical: &std::path::Path,
+    allowlist: &std::collections::HashSet<std::path::PathBuf>,
+) -> Result<(), String> {
+    if let Ok(root) = paths::openleaf_root() {
+        if let Ok(rr) = root.canonicalize() {
+            if canonical.starts_with(&rr) {
+                return Ok(());
+            }
+        } else if canonical.starts_with(&root) {
+            return Ok(());
+        }
+    }
+    if allowlist
+        .iter()
+        .any(|p| p == canonical || canonical.starts_with(p) || p.starts_with(canonical))
+    {
+        return Ok(());
+    }
+    Err(
+        "refusing to reveal a path outside OpenLeaf's data directory \
+         (export destinations are allowed only right after a successful save)"
+            .into(),
+    )
+}
+
 /// Reveal a file or folder in the platform's native file manager
 /// (Finder on macOS, Explorer on Windows, xdg-open on Linux).
 #[tauri::command]
-pub fn reveal_in_dir(path: String) -> Result<(), String> {
+pub fn reveal_in_dir(path: String, state: State<'_, AppState>) -> Result<(), String> {
     let raw = std::path::Path::new(&path);
     if !raw.exists() {
         return Err(format!("path does not exist: {path}"));
@@ -33,6 +62,10 @@ pub fn reveal_in_dir(path: String) -> Result<(), String> {
     let canonical = raw
         .canonicalize()
         .map_err(|e| format!("cannot resolve path: {e}"))?;
+    {
+        let allow = state.reveal_allowlist.blocking_lock();
+        assert_revealable(&canonical, &allow)?;
+    }
     let path = canonical.to_string_lossy().to_string();
     #[cfg(target_os = "macos")]
     {
@@ -213,9 +246,9 @@ async fn run_tectonic(
         .map_err(|e| format!("failed to spawn tectonic: {e}"))?;
 
     // Hard ceiling on a single compile. Tectonic can wedge indefinitely on a
-    // stalled package download, and because every compile (main preview AND
-    // the AI's isolated figure previews) serializes on one mutex, a hung
-    // process would silently block them all forever.
+    // stalled package download, and because compiles serialize per kind (one
+    // mutex for main-document builds, one for figure builds), a hung process
+    // would silently block its whole queue forever.
     const COMPILE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
     let deadline = tokio::time::Instant::now() + COMPILE_TIMEOUT;
 
@@ -278,13 +311,29 @@ async fn run_tectonic(
 /// native "Save as" dialog). Used to export a rendered figure PNG. Mirrors the
 /// trust model of `export_pdf` (the destination comes from a user dialog).
 #[tauri::command]
-pub async fn write_bytes_file(dest: String, data_base64: String) -> Result<(), String> {
+pub async fn write_bytes_file(
+    dest: String,
+    data_base64: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let bytes = decode_b64(&data_base64)?;
+    let dest_for_allow = dest.clone();
     tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
         std::fs::write(&dest, bytes).map_err(|e| format!("failed to write {dest}: {e}"))
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    // Permit a subsequent "Reveal in Finder/Explorer" for this export path.
+    if let Ok(canon) = std::path::Path::new(&dest_for_allow).canonicalize() {
+        state.reveal_allowlist.lock().await.insert(canon);
+    } else {
+        state
+            .reveal_allowlist
+            .lock()
+            .await
+            .insert(std::path::PathBuf::from(dest_for_allow));
+    }
+    Ok(())
 }
 
 /// Decode a base64 payload for `write_project_bytes`. Pure, so it is unit-testable.
@@ -312,7 +361,9 @@ pub async fn compile_isolated(
     eprintln!("figure: {project_id} requested");
     #[cfg(debug_assertions)]
     let req_at = std::time::Instant::now();
-    let _guard = state.compile_lock.lock().await;
+    // Figure builds use a separate dir and lock so they never block main-document
+    // compiles (or get blocked by them).
+    let _guard = state.figure_compile_lock.lock().await;
     #[cfg(debug_assertions)]
     eprintln!(
         "figure: {project_id} lock after {}ms",
