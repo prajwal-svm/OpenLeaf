@@ -5,6 +5,8 @@ description: "The complete shortcut reference for macOS, Windows, and Linux, fro
 
 OpenLeaf is comfortable to drive entirely from the keyboard. Press **⌘/** (Ctrl+/) inside the app anytime for a searchable version of this list.
 
+![The searchable in-app keyboard shortcuts reference](/OpenLeaf/media/keyboard-shortcuts.png)
+
 macOS shortcuts are listed first; the Windows/Linux equivalent swaps ⌘ for Ctrl.
 
 ## Global

@@ -31,6 +31,8 @@ Each provider card carries a **Get key** link straight to the right page. Reason
 
 Configure as many providers as you like: extras show a grey **Connected** badge with an **Activate** button, and the chat panel's model menu switches between all of them on the fly. The trash icon deletes a key.
 
+![Provider cards in Settings, AI Assistant](/OpenLeaf/media/settings-ai.png)
+
 ## Going local with Ollama
 
 Zero-cloud AI in three steps:

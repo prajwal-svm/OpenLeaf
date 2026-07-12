@@ -7,6 +7,8 @@ The right-hand pane is a full PDF reader built for the write-compile loop: it up
 
 The viewer is virtualized: only pages near your viewport are rasterized, so a 300-page thesis scrolls as lightly as a one-page letter.
 
+![Two-page spread view in the PDF preview](/OpenLeaf/media/pdf-preview-spread.png)
+
 ## The toolbar, left to right
 
 - **Logs**: flips to the [compile log view](/OpenLeaf/compiling/#reading-the-logs), with an error/warning badge.

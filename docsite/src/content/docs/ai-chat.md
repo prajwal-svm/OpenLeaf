@@ -38,6 +38,8 @@ Tool calls appear in the chat as chips (spinner while running, then a check, or 
 
 Any file-changing tool pauses the whole run and shows an approval card: which tool, what it wants to do, and a red/green diff of exactly what would change. **Approve** or **Reject**; the decision is stamped on the tool chip permanently, so the conversation records what you allowed.
 
+![The approval card: a diff you approve or reject](/OpenLeaf/media/ai-approval-diff.png)
+
 Two more layers of safety back this up:
 
 - Before its first edit of a run, the assistant commits an "OpenLeaf AI checkpoint" to your project's Git, so even approved changes can be rolled back wholesale from [history](/OpenLeaf/git-history/).

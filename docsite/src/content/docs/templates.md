@@ -49,6 +49,8 @@ The resume templates are split honestly:
 
 Whichever you pick, run [Preflight](/OpenLeaf/preflight/) before submitting: it simulates a resume parser against your actual PDF and shows what was extracted.
 
+![Creating a resume from a template](/OpenLeaf/media/hero-editor.gif)
+
 ## On-demand fonts (the Setup badge)
 
 Templates that use premium open-source typefaces (like the Lato-based Modern Resume) show a small **Setup** badge in the gallery. Creating one triggers a one-time font download with live progress, and the fonts are copied into the project's own `fonts/` folder, so the project stays self-contained and compiles offline from then on.

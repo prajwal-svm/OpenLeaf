@@ -15,6 +15,8 @@ For a paragraph that needs tightening or a broken equation that needs one fix, a
 
 Nothing mutates until you accept, and the diff renders in place, in context, where you can actually judge it, rather than in a side panel you have to mentally map back.
 
+![An inline AI edit reviewed as a red/green diff](/OpenLeaf/media/inline-ai-edit.png)
+
 ## What powers it
 
 Inline edit uses the same active provider and model as the [chat](/OpenLeaf/ai-chat/) (the panel shows which), plus your [custom instructions](/OpenLeaf/ai-setup/#custom-instructions). It's a single-shot edit rather than an agent: no tools, no multi-step runs, which is what makes it instant.

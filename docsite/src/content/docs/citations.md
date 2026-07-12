@@ -14,6 +14,8 @@ Open it from the quote button in the [editor toolbar](/OpenLeaf/editor/#the-tool
 - **A URL** containing either of the above.
 - **A paper title**: searches Crossref and shows a list of matches with title, authors, year, and venue; pick the right one.
 
+![The Add citation dialog with a fetched BibTeX entry](/OpenLeaf/media/citation-lookup.png)
+
 Click **Look up**, review the fetched BibTeX in the preview, and hit **Add to .bib and cite**. OpenLeaf then does three things at once:
 
 1. **Appends the entry to your project's `.bib`**, with a clean, auto-generated citation key.

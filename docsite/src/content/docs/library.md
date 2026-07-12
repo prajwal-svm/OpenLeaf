@@ -11,6 +11,8 @@ Each project is a colored book with a spine and page edges, showing the project 
 
 The grid adapts to your window: two, three, or four columns.
 
+![The library shelf with project books](/OpenLeaf/media/library-shelf.png)
+
 First time in the app? You'll see a welcome card instead: **"Create your first project"** opens the [template gallery](/OpenLeaf/templates/).
 
 ## Creating a project

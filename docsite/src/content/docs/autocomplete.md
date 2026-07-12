@@ -7,6 +7,8 @@ The editor completes three things as you type: LaTeX commands, cross-references,
 
 Suggestions appear automatically while typing; **Ctrl+Space** summons them anywhere. Accept with **Tab** or **Enter**.
 
+![The slash insert menu in the editor](/OpenLeaf/media/editor-slash-menu.png)
+
 ## Command completion
 
 Type a backslash and keep going: `\sec…` offers `\section`, `\fra…` offers `\frac`. Around 35 everyday commands are covered, including sectioning (`\section` through `\paragraph`), text formatting (`\textbf`, `\textit`, `\emph`, `\underline`), document structure (`\usepackage`, `\input`, `\maketitle`, `\tableofcontents`), math (`\frac`, `\sqrt`, `\sum`, `\int`), references (`\label`, `\ref`, `\eqref`, `\cite`, `\footnote`), and figures (`\includegraphics`).

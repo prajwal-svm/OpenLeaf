@@ -20,6 +20,8 @@ The branch icon in the left rail opens a VS Code-style panel (its rail badge cou
 
 Clean tree? The panel says so and stays out of your way.
 
+![The Source Control panel with staged changes](/OpenLeaf/media/source-control.png)
+
 ## The diff viewer
 
 Click any changed file and its diff opens as a tab in the editor area:

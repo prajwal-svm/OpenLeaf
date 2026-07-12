@@ -7,6 +7,8 @@ Publication figures usually force a choice: a GUI tool that exports pixels and f
 
 No API key, no network. This is a fully offline feature. (For AI-generated figures, see [Draw with AI](/OpenLeaf/ai-figures/).)
 
+![The diagram composer: visual canvas, TikZ code, and live preview](/OpenLeaf/media/diagram-composer.png)
+
 ## Opening the composer
 
 Click the **Insert diagram** button next to the compile button in the top toolbar, or run **Insert a diagram (manual)** from the search omnibar. The composer opens as a full-height window with your workspace on the left and a live preview on the right.
