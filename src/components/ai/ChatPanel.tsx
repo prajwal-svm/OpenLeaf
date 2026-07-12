@@ -129,11 +129,15 @@ function ToolBadge({ tc }: { tc: ToolEntry }) {
       >
         <Wrench className="size-3.5 text-muted-foreground" />
         <span className="font-mono">{tc.name}</span>
-        {tc.status === "running" && <Loader2 className="size-3 animate-spin" />}
-        {tc.status === "done" && tc.approval !== "rejected" && (
-          <CheckCircle2 className="size-3 text-emerald-500" />
+        {tc.approval === "rejected" ? (
+          <XCircle className="size-3 text-destructive" />
+        ) : (
+          <>
+            {tc.status === "running" && <Loader2 className="size-3 animate-spin" />}
+            {tc.status === "done" && <CheckCircle2 className="size-3 text-emerald-500" />}
+            {tc.status === "error" && <XCircle className="size-3 text-destructive" />}
+          </>
         )}
-        {tc.status === "error" && <XCircle className="size-3 text-destructive" />}
         <span className="ml-auto flex items-center gap-1.5">
           {tc.approval === "approved" && (
             <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
@@ -715,7 +719,12 @@ export function ChatPanel() {
             const calls = [...(m.toolCalls || [])];
             for (let i = calls.length - 1; i >= 0; i--) {
               if (calls[i].name === req.tool && calls[i].approval === undefined) {
-                calls[i] = { ...calls[i], approval: ok ? "approved" : "rejected" };
+                // A rejected tool never ran, so settle its badge state here: the
+                // stream's tool-result may never arrive (abort/retry races) and
+                // the spinner would otherwise spin forever.
+                calls[i] = ok
+                  ? { ...calls[i], approval: "approved" }
+                  : { ...calls[i], approval: "rejected", status: "done" };
                 break;
               }
             }
