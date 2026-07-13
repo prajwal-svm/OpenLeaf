@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Check, Copy, Eye, EyeOff, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,26 +36,167 @@ function CopyBtn({ text, testId }: { text: string; testId?: string }) {
   );
 }
 
+type SnippetLang = "json" | "shell" | "toml";
+
+/** Lightweight token coloring for the MCP connection snippets (no heavy highlighter dep). */
+function highlightSnippet(source: string, lang: SnippetLang): ReactNode[] {
+  const out: ReactNode[] = [];
+  let key = 0;
+  const push = (cls: string | null, text: string) => {
+    if (!text) return;
+    out.push(
+      cls ? (
+        <span key={key++} className={cls}>
+          {text}
+        </span>
+      ) : (
+        <span key={key++}>{text}</span>
+      ),
+    );
+  };
+
+  if (lang === "json") {
+    // Keys, strings, numbers, booleans/null, punctuation.
+    const re =
+      /("(?:\\.|[^"\\])*")(\s*:)?|(-?\d+(?:\.\d+)?)\b|(\b(?:true|false|null)\b)|([{}\[\],:])|(\s+)|([^\s"{}\[\],:]+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(source))) {
+      if (m[1] !== undefined) {
+        if (m[2] !== undefined) {
+          push("text-sky-700 dark:text-sky-300", m[1]);
+          push("text-muted-foreground", m[2]);
+        } else {
+          push("text-emerald-700 dark:text-emerald-400", m[1]);
+        }
+      } else if (m[3] !== undefined) {
+        push("text-amber-700 dark:text-amber-400", m[3]);
+      } else if (m[4] !== undefined) {
+        push("text-violet-700 dark:text-violet-400", m[4]);
+      } else if (m[5] !== undefined) {
+        push("text-muted-foreground", m[5]);
+      } else if (m[6] !== undefined) {
+        push(null, m[6]);
+      } else if (m[7] !== undefined) {
+        push(null, m[7]);
+      }
+    }
+    return out;
+  }
+
+  if (lang === "toml") {
+    const re =
+      /(\[[^\]]+\])|([A-Za-z_][\w.]*)(\s*=\s*)|("(?:\\.|[^"\\])*")|([{}=,])|(\s+)|([^\s\[\]"={}]+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(source))) {
+      if (m[1] !== undefined) {
+        push("text-sky-700 dark:text-sky-300", m[1]);
+      } else if (m[2] !== undefined) {
+        push("text-sky-700 dark:text-sky-300", m[2]);
+        push("text-muted-foreground", m[3] ?? "");
+      } else if (m[4] !== undefined) {
+        push("text-emerald-700 dark:text-emerald-400", m[4]);
+      } else if (m[5] !== undefined) {
+        push("text-muted-foreground", m[5]);
+      } else if (m[6] !== undefined) {
+        push(null, m[6]);
+      } else if (m[7] !== undefined) {
+        push(null, m[7]);
+      }
+    }
+    return out;
+  }
+
+  // shell: flag, quoted string, bare token
+  const re = /("(?:\\.|[^"\\])*")|(--?[\w-]+)|(\s+)|([^\s"]+)/g;
+  let m: RegExpExecArray | null;
+  let first = true;
+  while ((m = re.exec(source))) {
+    if (m[1] !== undefined) {
+      push("text-emerald-700 dark:text-emerald-400", m[1]);
+    } else if (m[2] !== undefined) {
+      push("text-violet-700 dark:text-violet-400", m[2]);
+    } else if (m[3] !== undefined) {
+      push(null, m[3]);
+    } else if (m[4] !== undefined) {
+      push(first ? "text-sky-700 dark:text-sky-300 font-medium" : null, m[4]);
+      first = false;
+    }
+  }
+  return out;
+}
+
+function FileName({ children }: { children: string }) {
+  return (
+    <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px] font-normal text-foreground">
+      {children}
+    </code>
+  );
+}
+
 function Snippet({
   title,
   body,
   copyText,
+  lang,
 }: {
-  title: string;
+  title: ReactNode;
+  /** Displayed (may be masked). */
   body: string;
+  /** Pasted on Copy (always the real snippet when the token is known). */
   copyText: string;
+  lang: SnippetLang;
 }) {
+  const highlighted = useMemo(() => highlightSnippet(body, lang), [body, lang]);
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-foreground">{title}</p>
         <CopyBtn text={copyText} />
       </div>
-      <pre className="overflow-x-auto rounded-md border bg-muted/40 p-2.5 text-[11px] leading-relaxed whitespace-pre-wrap break-all">
-        {body}
+      <pre className="overflow-x-auto rounded-md border bg-muted/40 p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-all">
+        <code>{highlighted}</code>
       </pre>
     </div>
   );
+}
+
+/** Build the four client snippets with a given bearer token string. */
+function buildSnippets(url: string, bearer: string) {
+  const claudeCode = `claude mcp add --transport http openleaf ${url} --header "Authorization: Bearer ${bearer}"`;
+  const claudeDesktop = JSON.stringify(
+    {
+      mcpServers: {
+        openleaf: {
+          command: "npx",
+          args: [
+            "-y",
+            "mcp-remote@latest",
+            url,
+            "--header",
+            `Authorization: Bearer ${bearer}`,
+            "--transport",
+            "http-only",
+          ],
+        },
+      },
+    },
+    null,
+    2,
+  );
+  const cursor = JSON.stringify(
+    {
+      mcpServers: {
+        openleaf: {
+          url,
+          headers: { Authorization: `Bearer ${bearer}` },
+        },
+      },
+    },
+    null,
+    2,
+  );
+  const grok = `[mcp_servers.openleaf]\nurl = "${url}"\nheaders = { Authorization = "Bearer ${bearer}" }`;
+  return { claudeCode, claudeDesktop, cursor, grok };
 }
 
 export function McpSection() {
@@ -68,16 +209,32 @@ export function McpSection() {
   const [revealed, setRevealed] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
 
+  /** Fetch the live token when the server is running (for Copy + Reveal display). */
+  const loadToken = useCallback(async (running: boolean) => {
+    if (!running) {
+      setToken(null);
+      setRevealed(false);
+      return;
+    }
+    try {
+      const info = await mcpConnectionInfo();
+      setToken(info.token);
+    } catch {
+      setToken(null);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     try {
       const [c, s] = await Promise.all([getConfig(), mcpStatus()]);
       setCfg(c);
       setStatus(s);
       setPortDraft(String(c.mcp_port || 5323));
+      await loadToken(!!s.running);
     } catch (e) {
       setError(String(e));
     }
-  }, []);
+  }, [loadToken]);
 
   useEffect(() => {
     void load();
@@ -101,13 +258,17 @@ export function McpSection() {
     setBusy(true);
     setError(null);
     setRevealed(false);
-    setToken(null);
     try {
       const port = Number(portDraft) || cfg.mcp_port || 5323;
       const s = await mcpSetEnabled(next, port);
       setStatus(s);
       setCfg({ ...cfg, mcp_enabled: next, mcp_port: port });
-      if (next) await refreshMcpRegistry();
+      if (next) {
+        await refreshMcpRegistry();
+        await loadToken(true);
+      } else {
+        setToken(null);
+      }
     } catch (e) {
       const msg = String(e);
       setError(
@@ -136,6 +297,7 @@ export function McpSection() {
         const s = await mcpSetEnabled(true, port);
         setStatus(s);
         setCfg({ ...cfg, mcp_port: port, mcp_enabled: true });
+        await loadToken(true);
       } catch (e) {
         setError(
           String(e).includes("bind") || String(e).includes("in use")
@@ -156,13 +318,16 @@ export function McpSection() {
       setError("Enable the server to view the token.");
       return;
     }
-    try {
-      const info = await mcpConnectionInfo();
-      setToken(info.token);
-      setRevealed(true);
-    } catch (e) {
-      setError(String(e));
+    if (!token) {
+      try {
+        const info = await mcpConnectionInfo();
+        setToken(info.token);
+      } catch (e) {
+        setError(String(e));
+        return;
+      }
     }
+    setRevealed(true);
   };
 
   const regenerate = async () => {
@@ -170,13 +335,14 @@ export function McpSection() {
     setError(null);
     try {
       await mcpRegenerateToken();
-      setToken(null);
-      setRevealed(false);
       setConfirmRegen(false);
       if (status?.running) {
         const info = await mcpConnectionInfo();
         setToken(info.token);
-        setRevealed(true);
+        // Keep current reveal state: if they were looking at it, show the new one.
+      } else {
+        setToken(null);
+        setRevealed(false);
       }
     } catch (e) {
       setError(String(e));
@@ -187,43 +353,14 @@ export function McpSection() {
 
   const enabled = !!(cfg?.mcp_enabled || status?.running);
   const url = status?.url ?? `http://127.0.0.1:${portDraft || 5323}/mcp`;
-  const tokenPlaceholder = "<token>";
-  const tokenForSnippets = revealed && token ? token : tokenPlaceholder;
+  // Display: real token when revealed, short mask when hidden, <token> only when unknown.
+  const tokenMask = "XXXXXX";
+  const tokenForDisplay = token ? (revealed ? token : tokenMask) : "<token>";
+  // Copy always pastes the real secret when the server is running.
+  const tokenForCopy = token ?? "<token>";
 
-  const claudeCode = `claude mcp add --transport http openleaf ${url} --header "Authorization: Bearer ${tokenForSnippets}"`;
-  const claudeDesktop = JSON.stringify(
-    {
-      mcpServers: {
-        openleaf: {
-          command: "npx",
-          args: [
-            "-y",
-            "mcp-remote@latest",
-            url,
-            "--header",
-            `Authorization: Bearer ${tokenForSnippets}`,
-            "--transport",
-            "http-only",
-          ],
-        },
-      },
-    },
-    null,
-    2,
-  );
-  const cursor = JSON.stringify(
-    {
-      mcpServers: {
-        openleaf: {
-          url,
-          headers: { Authorization: `Bearer ${tokenForSnippets}` },
-        },
-      },
-    },
-    null,
-    2,
-  );
-  const grok = `[mcp_servers.openleaf]\nurl = "${url}"\nheaders = { Authorization = "Bearer ${tokenForSnippets}" }`;
+  const displaySnippets = buildSnippets(url, tokenForDisplay);
+  const copySnippets = buildSnippets(url, tokenForCopy);
 
   if (!cfg) {
     return (
@@ -401,11 +538,11 @@ export function McpSection() {
         <div className="text-xs font-medium">Bearer token</div>
         <div className="flex flex-wrap items-center gap-2">
           <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 text-[11px] font-mono">
-            {revealed && token
-              ? token
-              : status?.running
-                ? "••••••••••••••••••••••••••••••••"
-                : "Enable the server to view the token."}
+            {status?.running
+              ? revealed && token
+                ? token
+                : tokenMask
+              : "Enable the server to view the token."}
           </code>
           <Button
             type="button"
@@ -468,14 +605,42 @@ export function McpSection() {
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold">Connect your app</h3>
-        <Snippet title="Claude Code" body={claudeCode} copyText={claudeCode} />
         <Snippet
-          title="Claude Desktop (claude_desktop_config.json)"
-          body={claudeDesktop}
-          copyText={claudeDesktop}
+          title="Claude Code"
+          body={displaySnippets.claudeCode}
+          copyText={copySnippets.claudeCode}
+          lang="shell"
         />
-        <Snippet title="Cursor (.cursor/mcp.json)" body={cursor} copyText={cursor} />
-        <Snippet title="Grok CLI (~/.grok/config.toml)" body={grok} copyText={grok} />
+        <Snippet
+          title={
+            <>
+              Claude Desktop (<FileName>claude_desktop_config.json</FileName>)
+            </>
+          }
+          body={displaySnippets.claudeDesktop}
+          copyText={copySnippets.claudeDesktop}
+          lang="json"
+        />
+        <Snippet
+          title={
+            <>
+              Cursor (<FileName>.cursor/mcp.json</FileName>)
+            </>
+          }
+          body={displaySnippets.cursor}
+          copyText={copySnippets.cursor}
+          lang="json"
+        />
+        <Snippet
+          title={
+            <>
+              Grok CLI (<FileName>~/.grok/config.toml</FileName>)
+            </>
+          }
+          body={displaySnippets.grok}
+          copyText={copySnippets.grok}
+          lang="toml"
+        />
       </div>
 
       <p className="text-[11px] leading-relaxed text-muted-foreground">
